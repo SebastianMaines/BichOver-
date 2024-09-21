@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listaGastos.innerHTML += `
                 <p class="${claseRepartido}">
                     ${gasto.fecha} - ${gasto.tipo}: $${gasto.monto.toFixed(2)} (${gasto.razon}) - Registrado por: ${gasto.usuario}
-                    <button onclick="eliminarGasto('${key}')">Eliminar</button>
+                    <button class="btn-eliminar" onclick="eliminarGasto('${key}')">Eliminar</button>
                 </p>
             `;
         });
@@ -255,9 +255,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             <input type="checkbox" ${cliente.potencial ? 'checked' : ''} onchange="marcarCliente('${key}', this.checked)">
                         </td>
                         <td>
-                            <button onclick="editarCliente('${key}')">Editar</button>
-                            <button onclick="eliminarCliente('${key}')">Eliminar</button>
-                        </td>
+    <button class="btn-editar" onclick="editarCliente('${key}')">Editar</button>
+    <button class="btn-eliminar" onclick="eliminarCliente('${key}')">Eliminar</button>
+</td>
                     </tr>
                 `;
                 clientesBody.innerHTML += row;
@@ -381,8 +381,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             <input type="number" value="${cliente.frascosVerano2024 || 0}" onchange="actualizarFrascosVerano('${key}', this.value)">
                         </td>
                         <td>
-                            <button onclick="editarCliente('${key}')">Editar</button>
-                            <button onclick="eliminarCliente('${key}')">Eliminar</button>
+                            <button class="btn-editar" onclick="editarCliente('${key}')">Editar</button>
+                            <button  class="btn-eliminar"onclick="eliminarCliente('${key}')">Eliminar</button>
                         </td>
                     </tr>
                 `;
@@ -501,7 +501,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <td>${venta.cantidadFrascos}</td>
                     <td>$${precioTotal.toFixed(2)}</td>
                     <td>${venta.usuario}</td>
-                    <td><button onclick="eliminarVenta('${key}')">Eliminar</button></td>
+                    <td><button class="btn-eliminar" onclick="eliminarVenta('${key}')">Eliminar</button></td>
                 </tr>
             `;
             ventasBody.innerHTML += row;
@@ -820,7 +820,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${detalleSociosHTML}
                 <p><strong>Balance:</strong> ${reparto.mensajeBalance}</p>
                 <p>Registrado por: ${reparto.usuario}</p>
-                <button onclick="eliminarReparto('${key}')">Eliminar</button>
+                <button class="btn-eliminar" onclick="eliminarReparto('${key}')">Eliminar</button>
             </div>
         `;
         });
@@ -882,7 +882,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listaAnotaciones.innerHTML += `
                 <p>
                     ${anotacion.fecha} - ${anotacion.anotacion} - Registrado por: ${anotacion.usuario}
-                    <button onclick="eliminarAnotacion('${key}')">Eliminar</button>
+                    <button class="btn-eliminar" onclick="eliminarAnotacion('${key}')">Eliminar</button>
                 </p>
             `;
         });

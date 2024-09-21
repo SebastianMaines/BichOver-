@@ -155,3 +155,42 @@ table th {
         padding: 0 20px;
     }
 }
+
+
+.btn-editar,
+.btn-eliminar {
+    padding: 10px 15px;
+    /* Espaciado interno */
+    border: none;
+    /* Sin borde */
+    border-radius: 5px;
+    /* Bordes redondeados */
+    cursor: pointer;
+    /* Cambia el cursor al pasar sobre el botón */
+    margin-right: 5px;
+    /* Espacio entre los botones */
+}
+
+.btn-editar {
+    background-color: #4CAF50;
+    /* Color verde */
+    color: white;
+    /* Texto blanco */
+}
+
+.btn-editar:hover {
+    background-color: #45a049;
+    /* Color verde más oscuro al pasar el mouse */
+}
+
+.btn-eliminar {
+    background-color: #f44336;
+    /* Color rojo */
+    color: white;
+    /* Texto blanco */
+}
+
+.btn-eliminar:hover {
+    background-color: #e53935;
+    /* Color rojo más oscuro al pasar el mouse */
+}

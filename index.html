@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Emprendimiento</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Agregar íconos de Google Fonts para mejorar la interfaz -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+</head>
+
+<body>
+    <!-- Barra de navegación -->
+    <nav class="navbar">
+        <img src="./Captura.PNG" alt="">
+        <h1>BichOver!</h1>
+        <div id="user-info">
+            <!-- Mostrar información del usuario autenticado -->
+            <span id="user-username"></span>
+            <button id="logout-btn">Cerrar Sesión</button>
+        </div>
+    </nav>
+
+    <!-- Botones para navegar entre las secciones -->
+    <div class="navigation">
+        <button onclick="showSection('gastos')">Gastos</button>
+        <button onclick="showSection('clientes')">Clientes</button>
+        <button onclick="showSection('clientesPotenciales')">Clientes Potenciales</button>
+        <button onclick="showSection('ventas')">Ventas</button>
+        <button onclick="showSection('ganancias')">Reparto de Ganancias</button>
+        <button onclick="showSection('anotaciones')">Anotaciones</button>
+        <!-- Botón para la sección de Stock -->
+        <button onclick="showSection('stock')">Stock</button>
+    </div>
+
+    <!-- Sección de Inicio de Sesión -->
+    <section id="login" class="section">
+        <h2>Inicio de Sesión</h2>
+        <form id="loginForm">
+            <input type="text" id="username" placeholder="Nombre de Usuario" required>
+            <input type="password" id="password" placeholder="Contraseña" required>
+            <button type="submit">Iniciar Sesión</button>
+        </form>
+    </section>
+
+    <!-- Sección de Registro -->
+    <section id="register" class="section" style="display:none;">
+        <h2>Registrarse</h2>
+        <form id="registerForm">
+            <label for="registerEmail">Correo Electrónico:</label>
+            <input type="email" id="registerEmail" placeholder="Correo electrónico" required>
+
+            <label for="registerPassword">Contraseña:</label>
+            <input type="password" id="registerPassword" placeholder="Contraseña" required>
+
+            <button type="submit">Registrarse</button>
+        </form>
+        <p>¿Ya tienes una cuenta? <a href="#" onclick="toggleForms()">Inicia sesión aquí</a></p>
+    </section>
+
+    <!-- Sección de Gastos -->
+    <section id="gastos" class="section" style="display:none;">
+        <h2>Registrar Gasto</h2>
+        <form id="gastosForm">
+            <label for="tipo">Tipo de gasto:</label>
+            <select id="tipo">
+                <option value="frascos">Frascos</option>
+                <option value="producto">Producto</option>
+                <option value="etiquetas">Etiquetas</option>
+                <option value="cajas">Cajas</option>
+                <option value="nafta">Nafta</option>
+                <option value="peaje">Peaje</option>
+                <option value="otro">Otro</option>
+            </select>
+
+            <label for="monto">Monto:</label>
+            <input type="number" id="monto" placeholder="Monto del gasto" required>
+
+            <label for="razon">Razón:</label>
+            <input type="text" id="razon" placeholder="Razón del gasto" required>
+
+            <button type="submit">Registrar Gasto</button>
+        </form>
+
+        <!-- Lista de gastos -->
+        <div id="gastosReporte">
+            <h3>Reporte de Gastos</h3>
+            <div id="listaGastos"></div>
+        </div>
+    </section>
+
+    <!-- Sección de Clientes -->
+    <section id="clientes" class="section" style="display:none;">
+        <h2>Clientes</h2>
+        <form id="clientesForm">
+            <label for="razonSocial">Razón Social:</label>
+            <input type="text" id="razonSocial" placeholder="Razón Social" required>
+
+            <label for="localidad">Localidad:</label>
+            <input type="text" id="localidad" placeholder="Localidad" required>
+
+            <label for="direccion">Dirección:</label>
+            <input type="text" id="direccion" placeholder="Dirección" required>
+
+            <label for="telefono">Teléfono:</label>
+            <input type="tel" id="telefono" placeholder="Teléfono" required>
+
+            <button type="submit">Agregar Cliente</button>
+        </form>
+
+        <!-- Opciones de ordenamiento -->
+        <div class="sort-options">
+            <label for="sortSelect">Ordenar por:</label>
+            <select id="sortSelect">
+                <option value="razonSocial">Nombre (A-Z)</option>
+                <option value="localidad">Localidad</option>
+            </select>
+        </div>
+
+        <!-- Tabla para mostrar la lista de clientes -->
+        <h3>Lista de Clientes</h3>
+        <table id="clientesTable">
+            <thead>
+                <tr>
+                    <th>Razón Social</th>
+                    <th>Localidad</th>
+                    <th>Dirección</th>
+                    <th>Teléfono</th>
+                    <th>Frascos Comprados</th>
+                    <th>Fecha Última Compra</th>
+                    <th>Potencial</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="clientesBody"></tbody>
+        </table>
+    </section>
+
+    <!-- Sección de Clientes Potenciales -->
+    <section id="clientesPotenciales" class="section" style="display:none;">
+        <h2>Clientes Potenciales</h2>
+        <!-- Tabla para mostrar la lista de clientes potenciales -->
+        <table id="clientesPotencialesTable">
+            <thead>
+                <tr>
+                    <th>Razón Social</th>
+                    <th>Localidad</th>
+                    <th>Dirección</th>
+                    <th>Teléfono</th>
+                    <th>Frascos Verano 2024</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="clientesPotencialesBody"></tbody>
+        </table>
+    </section>
+
+    <!-- Sección de Ventas -->
+    <section id="ventas" class="section" style="display:none;">
+        <h2>Registrar Venta</h2>
+        <form id="ventasForm">
+            <label for="clienteVenta">Cliente:</label>
+            <select id="clienteVenta" required>
+                <!-- Opciones cargadas dinámicamente -->
+            </select>
+
+            <label for="cantidadVenta">Cantidad de Frascos:</label>
+            <input type="number" id="cantidadVenta" placeholder="Cantidad de frascos vendidos" required>
+
+            <label for="precioVenta">Precio de Venta (por frasco):</label>
+            <input type="number" id="precioVenta" placeholder="Precio por frasco" required>
+
+            <button type="submit">Registrar Venta</button>
+        </form>
+
+        <!-- Tabla para mostrar la lista de ventas -->
+        <h3>Lista de Ventas</h3>
+        <table id="ventasTable">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Cantidad de Frascos</th>
+                    <th>Precio Total</th>
+                    <th>Registrado por</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="ventasBody"></tbody>
+        </table>
+    </section>
+
+    <!-- Sección de Reparto de Ganancias -->
+    <section id="ganancias" class="section" style="display:none;">
+        <h2>Reparto de Ganancias</h2>
+        <form id="gananciasForm">
+            <label for="fechaInicio">Fecha Inicio:</label>
+            <input type="date" id="fechaInicio" required>
+
+            <label for="fechaFin">Fecha Fin:</label>
+            <input type="date" id="fechaFin" required>
+
+            <button type="submit">Calcular Ganancias</button>
+        </form>
+        <div id="gananciasResultado"></div>
+        <h3>Historial de Repartos</h3>
+        <div id="historialGanancias"></div>
+    </section>
+
+    <!-- Sección de Anotaciones -->
+    <section id="anotaciones" class="section" style="display:none;">
+        <h2>Anotaciones</h2>
+        <form id="anotacionesForm">
+            <label for="anotacion">Anotación:</label>
+            <textarea id="anotacion" placeholder="Escribe tu anotación aquí..." required></textarea>
+
+            <button type="submit">Agregar Anotación</button>
+        </form>
+
+        <!-- Lista de anotaciones -->
+        <div id="listaAnotaciones">
+            <h3>Lista de Anotaciones</h3>
+            <!-- Las anotaciones se mostrarán aquí -->
+        </div>
+    </section>
+
+    <!-- Sección de Stock -->
+    <section id="stock" class="section" style="display:none;">
+        <h2>Gestión de Stock</h2>
+        <form id="stockForm">
+            <label for="stockInput">Agregar al Stock:</label>
+            <input type="number" id="stockInput" placeholder="Cantidad de frascos a agregar" required>
+            <button type="submit">Actualizar Stock</button>
+        </form>
+        <div id="stockInfo">
+            <h3>Stock Actual de Todos los Usuarios</h3>
+            <table id="stockTable">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Stock de Frascos</th>
+                    </tr>
+                </thead>
+                <tbody id="stockBody"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Firebase y archivo app.js -->
+    <!-- Asegúrate de reemplazar los scripts de Firebase con las versiones correctas -->
+    <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-auth-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // Función para mostrar la sección seleccionada
+        function showSection(sectionId) {
+            const sections = document.querySelectorAll('.section');
+            sections.forEach(section => {
+                section.style.display = 'none';  // Ocultar todas las secciones
+            });
+            document.getElementById(sectionId).style.display = 'block';  // Mostrar la sección seleccionada
+        }
+
+        // Función para alternar entre el formulario de inicio de sesión y registro
+        function toggleForms() {
+            const loginSection = document.getElementById('login');
+            const registerSection = document.getElementById('register');
+            if (loginSection.style.display === 'none') {
+                loginSection.style.display = 'block';
+                registerSection.style.display = 'none';
+            } else {
+                loginSection.style.display = 'none';
+                registerSection.style.display = 'block';
+            }
+        }
+    </script>
+
+</body>
+
+</html>

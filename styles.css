@@ -1,0 +1,157 @@
+body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    background-color: #f9f9f9;
+}
+
+.navbar {
+    background-color: #006fee;
+    color: white;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.navbar h1 {
+    margin: 0;
+}
+
+.navbar img {
+    width: 160px;
+}
+
+#user-info {
+    display: flex;
+    align-items: center;
+}
+
+#user-username {
+    margin-right: 10px;
+}
+
+.navigation {
+    display: flex;
+    justify-content: center;
+    background-color: #1e9aece8;
+}
+
+.navigation button {
+    background-color: transparent;
+    border: none;
+    color: white;
+    padding: 15px 20px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.navigation button:hover {
+    background-color: #1e9aece8;
+}
+
+.section {
+    padding: 20px;
+}
+
+form {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+form label {
+    display: block;
+    margin-top: 15px;
+}
+
+form input,
+form select,
+form textarea {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+form button {
+    width: 100%;
+    padding: 15px;
+    background-color: #1e9aece8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    margin-top: 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+form button:hover {
+    background-color: #1e9aece8;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+table th,
+table td {
+    padding: 12px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+
+table th {
+    background-color: #1e9aece8;
+    color: white;
+}
+
+.reparto {
+    background-color: #e0e0e0;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+#gananciasResultado p {
+    font-size: 18px;
+    margin: 10px 0;
+}
+
+#listaGastos p,
+#listaAnotaciones p {
+    background-color: #e0e0e0;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.sort-options {
+    margin: 20px 0;
+}
+
+.sort-options label {
+    margin-right: 10px;
+}
+
+.repartido {
+    background-color: #d4f7d4;
+    /* Color verde claro */
+}
+
+@media (max-width: 600px) {
+    .navigation {
+        flex-direction: column;
+    }
+
+    .navigation button {
+        width: 100%;
+        text-align: left;
+        padding-left: 20px;
+    }
+
+    form {
+        padding: 0 20px;
+    }
+}

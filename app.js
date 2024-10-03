@@ -2,8 +2,6 @@
 // Esperar a que el documento esté completamente cargado 
 document.addEventListener('DOMContentLoaded', function () {
 
-     // Verificar que Firebase esté configurado correctamente
-    console.log("Firebase inicializado");
     // Configuración de Firebase
     const firebaseConfig = {
     apiKey: "AIzaSyAOAbpgX2VmylNbP6WRp9CwzLNq_8eVjZI",
@@ -19,18 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
- // Verificar si la base de datos está siendo cargada
-    db.ref('gastos').once('value', (snapshot) => {
-        console.log("Base de datos cargada, snapshot:", snapshot.val());
-        if (snapshot.exists()) {
-            console.log("Datos de gastos encontrados");
-        } else {
-            console.log("No hay datos en la base de datos de gastos");
-        }
-    }).catch((error) => {
-        console.error("Error al cargar la base de datos:", error);
-    });
-});
+ 
     // Referencias a Firebase
     const db = firebase.database();
 

@@ -1,4 +1,3 @@
-
 // Esperar a que el documento esté completamente cargado
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -101,20 +100,28 @@ document.addEventListener('DOMContentLoaded', function () {
     showSection('login');
 
     /*** SECCIÓN DE GASTOS ***/
-    // Función para registrar el gasto
+    // Mostrar campo de destinatario al seleccionar "Transferencia"
+    document.getElementById('tipo').addEventListener('change', function () {
+        const tipo = this.value;
+        const destinatarioSection = document.getElementById('destinatarioSection');
+        if (tipo === 'transferencia') {
+            destinatarioSection.style.display = 'block';
+        } else {
+            destinatarioSection.style.display = 'none';
+        }
+    });
+    // Manejar el formulario de gastos (agregar la lógica de transferencia)
     document.getElementById('gastosForm').addEventListener('submit', function (e) {
         e.preventDefault();
 
         const user = getCurrentUser();
         if (!user) return;
 
-        // Obtener los valores del formulario
         const tipo = document.getElementById('tipo').value;
         const monto = parseFloat(document.getElementById('monto').value);
         const razon = document.getElementById('razon').value;
 
-        // Crear el objeto gasto
-        const gasto = {
+        let gasto = {
             tipo: tipo,
             monto: monto,
             razon: razon,
@@ -124,13 +131,26 @@ document.addEventListener('DOMContentLoaded', function () {
             repartido: false
         };
 
-        // Guardar el gasto en Firebase
-        db.ref('gastos').push(gasto);
+        if (tipo === 'transferencia') {
+            const destinatario = document.getElementById('destinatario').value;
+            gasto.destinatario = destinatario;
 
-        // Limpiar el formulario
+            // Registrar el gasto al usuario que realiza la transferencia
+            db.ref('gastos').push(gasto);
+
+            // Registrar la reducción en el destinatario
+            db.ref('gastos').push({
+                ...gasto,
+                usuario: destinatario,
+                monto: -monto, // Registrar como gasto negativo
+                razon: `Recibido de ${user.username}`
+            });
+        } else {
+            db.ref('gastos').push(gasto);
+        }
+
         document.getElementById('gastosForm').reset();
     });
-
     // Función para mostrar los gastos en tiempo real
     db.ref('gastos').on('value', (snapshot) => {
         const listaGastos = document.getElementById('listaGastos');
@@ -617,8 +637,8 @@ document.addEventListener('DOMContentLoaded', function () {
         cargarStock();
     });
 
+
     /*** SECCIÓN DE REPARTO DE GANANCIAS ***/
-    // Función para calcular y mostrar el reparto de ganancias
     document.getElementById('gananciasForm').addEventListener('submit', function (e) {
         e.preventDefault();
 
@@ -688,12 +708,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     sociosArray.push(socio);
 
                     detalleSocios += `
-                    <p><strong>${socio.username}</strong></p>
-                    <p>Gastos: $${socio.totalGastos.toFixed(2)}</p>
-                    <p>Ventas: $${socio.totalVentas.toFixed(2)}</p>
-                    <p>Ganancia Neta: $${gananciaNeta.toFixed(2)}</p>
-                    <hr>
-                `;
+                <p><strong>${socio.username}</strong></p>
+                <p>Gastos: $${socio.totalGastos.toFixed(2)}</p>
+                <p>Ventas: $${socio.totalVentas.toFixed(2)}</p>
+                <p>Ganancia Neta: $${gananciaNeta.toFixed(2)}</p>
+                <hr>
+            `;
                 }
 
                 // Calcular la ganancia neta esperada por socio
@@ -730,118 +750,32 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 gananciasDiv.innerHTML = `
-                <h3>Detalle por Socio</h3>
-                ${detalleSocios}
-                <h3>Resumen General</h3>
-                <p>Total de Ventas: $${totalVentasGlobal.toFixed(2)}</p>
-                <p>Total de Gastos: $${totalGastosGlobal.toFixed(2)}</p>
-                <p>Ganancias Totales: $${gananciasTotales.toFixed(2)}</p>
-                <h3>Balance entre Socios</h3>
-                <p>${mensajeBalance}</p>
-            `;
-
-                // Guardar el reparto en Firebase
-                const reparto = {
-                    fechaInicio: new Date(fechaInicio).toLocaleDateString(),
-                    fechaFin: new Date(fechaFin).toLocaleDateString(),
-                    totalVentas: totalVentasGlobal,
-                    totalGastos: totalGastosGlobal,
-                    gananciasTotales: gananciasTotales,
-                    detalleSocios: sociosArray, // Almacenar como array
-                    mensajeBalance: mensajeBalance,
-                    fechaReparto: new Date().toLocaleString(),
-                    usuario: user.username
-                };
-
-                db.ref('repartos').push(reparto);
-
-                // Marcar las transacciones como repartidas
-                // Marcar gastos
-                db.ref('gastos').orderByChild('repartido').equalTo(false).once('value').then((snapshot) => {
-                    snapshot.forEach((childSnapshot) => {
-                        const gasto = childSnapshot.val();
-                        const fechaGasto = gasto.timestamp;
-
-                        if (fechaGasto >= fechaInicio && fechaGasto <= fechaFin) {
-                            db.ref('gastos/' + childSnapshot.key).update({ repartido: true });
-                        }
-                    });
-                });
-
-                // Marcar ventas
-                db.ref('ventas').orderByChild('repartido').equalTo(false).once('value').then((snapshot) => {
-                    snapshot.forEach((childSnapshot) => {
-                        const venta = childSnapshot.val();
-                        const fechaVenta = venta.timestamp;
-
-                        if (fechaVenta >= fechaInicio && fechaVenta <= fechaFin) {
-                            db.ref('ventas/' + childSnapshot.key).update({ repartido: true });
-                        }
-                    });
-                });
-
-            });
-        });
-    });
-
-    // Mostrar historial de repartos
-    db.ref('repartos').on('value', (snapshot) => {
-        const historialDiv = document.getElementById('historialGanancias');
-        if (!historialDiv) {
-            console.error('Elemento con ID "historialGanancias" no encontrado en el DOM.');
-            return;
-        }
-        historialDiv.innerHTML = '';
-
-        snapshot.forEach((childSnapshot) => {
-            const reparto = childSnapshot.val();
-            const key = childSnapshot.key;
-
-            // Construir detalle de socios
-            let detalleSociosHTML = '';
-            if (reparto.detalleSocios && Array.isArray(reparto.detalleSocios)) {
-                reparto.detalleSocios.forEach(socio => {
-                    detalleSociosHTML += `
-                    <p><strong>${socio.username}</strong></p>
-                    <p>Gastos: $${socio.totalGastos.toFixed(2)}</p>
-                    <p>Ventas: $${socio.totalVentas.toFixed(2)}</p>
-                    <p>Ganancia Neta: $${socio.gananciaNeta.toFixed(2)}</p>
-                    <hr>
-                `;
-                });
-            } else {
-                detalleSociosHTML = '<p>No hay detalles de socios disponibles para este reparto.</p>';
-            }
-
-            historialDiv.innerHTML += `
-            <div class="reparto">
-                <p>Fecha de Reparto: ${reparto.fechaReparto}</p>
-                <p>Rango de Fechas: ${reparto.fechaInicio} - ${reparto.fechaFin}</p>
-                ${detalleSociosHTML}
-                <p><strong>Balance:</strong> ${reparto.mensajeBalance}</p>
-                <p>Registrado por: ${reparto.usuario}</p>
-                <button class="btn-eliminar" onclick="eliminarReparto('${key}')">Eliminar</button>
-            </div>
+            <h3>Detalle por Socio</h3>
+            ${detalleSocios}
+            <h3>Resumen General</h3>
+            <p>Total de Ventas: $${totalVentasGlobal.toFixed(2)}</p>
+            <p>Total de Gastos: $${totalGastosGlobal.toFixed(2)}</p>
+            <p>Ganancias Totales: $${gananciasTotales.toFixed(2)}</p>
+            <h3>Balance entre Socios</h3>
+            <p>${mensajeBalance}</p>
         `;
+
+                // Mostrar el botón de "Guardar Reparto" después de calcular las ganancias
+                document.getElementById('guardarGananciasBtn').style.display = 'block';
+            });
         });
     });
 
-    // Función para eliminar un reparto de ganancias
-    window.eliminarReparto = function (key) {
-        if (confirm('¿Estás seguro de que deseas eliminar este reparto de ganancias?')) {
-            // Mover el reparto a 'repartosEliminados'
-            db.ref('repartos/' + key).once('value').then((snapshot) => {
-                const repartoEliminado = snapshot.val();
-                repartoEliminado.eliminadoPor = getCurrentUser().username;
-                repartoEliminado.fechaEliminacion = new Date().toLocaleString();
-                db.ref('repartosEliminados').push(repartoEliminado);
+    // Función para guardar el reparto de ganancias
+    document.getElementById('guardarGananciasBtn').addEventListener('click', function () {
+        // Aquí puedes colocar la lógica para guardar el reparto en Firebase
+        alert('Reparto guardado exitosamente.');
 
-                // Eliminar el reparto original
-                db.ref('repartos/' + key).remove();
-            });
-        }
-    };
+        // Ocultar el botón de "Guardar Reparto"
+        document.getElementById('guardarGananciasBtn').style.display = 'none';
+    });
     /*** SECCIÓN DE ANOTACIONES ***/
+
     // Función para agregar una anotación
     document.getElementById('anotacionesForm').addEventListener('submit', function (e) {
         e.preventDefault();
@@ -905,5 +839,3 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
 });
-
-

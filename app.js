@@ -364,7 +364,7 @@ function actualizarGasto(usuario, monto) {
         // Limpiar el formulario
         document.getElementById('clientesForm').reset();
     });
-
+    
     // Función para eliminar un cliente
     window.eliminarCliente = function (key) {
         if (confirm('¿Estás seguro de que deseas eliminar este cliente?')) {
@@ -917,5 +917,7 @@ function guardarRepartoDeGanancias() {
     };
 
 });
+}
+
 
 

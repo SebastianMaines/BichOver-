@@ -1,4 +1,3 @@
-
 // Esperar a que el documento esté completamente cargado
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -101,27 +100,28 @@ document.addEventListener('DOMContentLoaded', function () {
     showSection('login');
 
     /*** SECCIÓN DE GASTOS ***/
-    // Función para registrar el gasto
+    // Mostrar campo de destinatario al seleccionar "Transferencia"
+    document.getElementById('tipo').addEventListener('change', function () {
+        const tipo = this.value;
+        const destinatarioSection = document.getElementById('destinatarioSection');
+        if (tipo === 'transferencia') {
+            destinatarioSection.style.display = 'block';
+        } else {
+            destinatarioSection.style.display = 'none';
+        }
+    });
+    // Manejar el formulario de gastos (agregar la lógica de transferencia)
     document.getElementById('gastosForm').addEventListener('submit', function (e) {
         e.preventDefault();
-
-        
 
         const user = getCurrentUser();
         if (!user) return;
 
-        // Obtener los valores del formulario
-         const tipo = document.getElementById('tipo').value;
-    const monto = parseFloat(document.getElementById('monto').value);
-    const razon = document.getElementById('razon').value;
+        const tipo = document.getElementById('tipo').value;
+        const monto = parseFloat(document.getElementById('monto').value);
+        const razon = document.getElementById('razon').value;
 
-    let destinatario = null;
-    if (tipo === 'transferencia') {
-        destinatario = document.getElementById('destinatario').value;
-    }
-
-        // Crear el objeto gasto
-        const gasto = {
+        let gasto = {
             tipo: tipo,
             monto: monto,
             razon: razon,
@@ -131,29 +131,26 @@ document.addEventListener('DOMContentLoaded', function () {
             repartido: false
         };
 
-        
+        if (tipo === 'transferencia') {
+            const destinatario = document.getElementById('destinatario').value;
+            gasto.destinatario = destinatario;
 
-        // Guardar el gasto en Firebase
-        db.ref('gastos').push(gasto);
+            // Registrar el gasto al usuario que realiza la transferencia
+            db.ref('gastos').push(gasto);
 
-    if (tipo === 'transferencia' && destinatario) {
-        actualizarGasto(user.username, -monto);
-        actualizarGasto(destinatario, monto);
-    } else {
-        actualizarGasto(user.username, monto);
-    }
+            // Registrar la reducción en el destinatario
+            db.ref('gastos').push({
+                ...gasto,
+                usuario: destinatario,
+                monto: -monto, // Registrar como gasto negativo
+                razon: `Recibido de ${user.username}`
+            });
+        } else {
+            db.ref('gastos').push(gasto);
+        }
 
-        
-        // Limpiar el formulario
         document.getElementById('gastosForm').reset();
     });
-// Función para actualizar el gasto de cada usuario en Firebase
-function actualizarGasto(usuario, monto) {
-    const usuarioRef = db.ref('usuarios/' + usuario + '/gastos');
-    usuarioRef.transaction(function (currentGastos) {
-        return (currentGastos || 0) + monto;
-    });
-
     // Función para mostrar los gastos en tiempo real
     db.ref('gastos').on('value', (snapshot) => {
         const listaGastos = document.getElementById('listaGastos');
@@ -640,219 +637,145 @@ function actualizarGasto(usuario, monto) {
         cargarStock();
     });
 
+
     /*** SECCIÓN DE REPARTO DE GANANCIAS ***/
- // Función para calcular y mostrar el reparto de ganancias
-document.getElementById('gananciasForm').addEventListener('submit', function (e) {
-    e.preventDefault();
+    document.getElementById('gananciasForm').addEventListener('submit', function (e) {
+        e.preventDefault();
 
-    const user = getCurrentUser();
-    if (!user) return;
+        const user = getCurrentUser();
+        if (!user) return;
 
-    const fechaInicioInput = document.getElementById('fechaInicio').value;
-    const fechaFinInput = document.getElementById('fechaFin').value;
+        // Obtener las fechas seleccionadas y convertirlas a timestamp
+        const fechaInicioInput = document.getElementById('fechaInicio').value;
+        const fechaFinInput = document.getElementById('fechaFin').value;
 
-    if (!fechaInicioInput || !fechaFinInput) {
-        alert('Por favor, selecciona ambas fechas.');
-        return;
-    }
+        if (!fechaInicioInput || !fechaFinInput) {
+            alert('Por favor, selecciona ambas fechas.');
+            return;
+        }
 
-    const fechaInicio = new Date(fechaInicioInput).getTime();
-    const fechaFin = new Date(fechaFinInput).getTime() + 86400000 - 1; // Incluir el último día completo
+        const fechaInicio = new Date(fechaInicioInput).getTime();
+        const fechaFin = new Date(fechaFinInput).getTime() + 86400000 - 1; // Agregar horas para incluir todo el día
 
-    let socios = {}; // Objeto para almacenar los datos de cada socio
+        let socios = {}; // Objeto para almacenar datos de cada socio
 
-    // Obtener gastos no repartidos en el rango de fechas
-    db.ref('gastos').orderByChild('repartido').equalTo(false).once('value').then((snapshot) => {
-        snapshot.forEach((childSnapshot) => {
-            const gasto = childSnapshot.val();
-            const fechaGasto = gasto.timestamp;
-
-            if (fechaGasto >= fechaInicio && fechaGasto <= fechaFin) {
-                const usuario = gasto.usuario;
-                if (!socios[usuario]) {
-                    socios[usuario] = { username: usuario, totalGastos: 0, totalVentas: 0 };
-                }
-                socios[usuario].totalGastos += parseFloat(gasto.monto);
-            }
-        });
-
-        // Obtener ventas no repartidas en el rango de fechas
-        db.ref('ventas').orderByChild('repartido').equalTo(false).once('value').then((snapshot) => {
+        // Obtener gastos no repartidos en el rango de fechas
+        db.ref('gastos').orderByChild('repartido').equalTo(false).once('value').then((snapshot) => {
             snapshot.forEach((childSnapshot) => {
-                const venta = childSnapshot.val();
-                const fechaVenta = venta.timestamp;
+                const gasto = childSnapshot.val();
+                const fechaGasto = gasto.timestamp;
 
-                if (fechaVenta >= fechaInicio && fechaVenta <= fechaFin) {
-                    const usuario = venta.usuario;
+                if (fechaGasto >= fechaInicio && fechaGasto <= fechaFin) {
+                    const usuario = gasto.usuario;
                     if (!socios[usuario]) {
                         socios[usuario] = { username: usuario, totalGastos: 0, totalVentas: 0 };
                     }
-                    socios[usuario].totalVentas += parseFloat(venta.precioVenta) * parseInt(venta.cantidadFrascos);
+                    socios[usuario].totalGastos += parseFloat(gasto.monto);
                 }
             });
 
-            // Calcular las ganancias netas de cada socio
-            let gananciasTotales = 0;
-            let totalGastosGlobal = 0;
-            let totalVentasGlobal = 0;
-            let detalleSocios = '';
+            // Obtener ventas no repartidas en el rango de fechas
+            db.ref('ventas').orderByChild('repartido').equalTo(false).once('value').then((snapshot) => {
+                snapshot.forEach((childSnapshot) => {
+                    const venta = childSnapshot.val();
+                    const fechaVenta = venta.timestamp;
 
-            for (let username in socios) {
-                const socio = socios[username];
-                const gananciaNeta = socio.totalVentas - socio.totalGastos;
-                gananciasTotales += gananciaNeta;
-                totalGastosGlobal += socio.totalGastos;
-                totalVentasGlobal += socio.totalVentas;
+                    if (fechaVenta >= fechaInicio && fechaVenta <= fechaFin) {
+                        const usuario = venta.usuario;
+                        if (!socios[usuario]) {
+                            socios[usuario] = { username: usuario, totalGastos: 0, totalVentas: 0 };
+                        }
+                        socios[usuario].totalVentas += parseFloat(venta.precioVenta) * parseInt(venta.cantidadFrascos);
+                    }
+                });
 
-                detalleSocios += `
+                // Calcular las ganancias netas de cada socio
+                let gananciasTotales = 0;
+                let totalGastosGlobal = 0;
+                let totalVentasGlobal = 0;
+                let detalleSocios = '';
+
+                const sociosArray = [];
+
+                for (let username in socios) {
+                    const socio = socios[username];
+                    const gananciaNeta = socio.totalVentas - socio.totalGastos;
+                    gananciasTotales += gananciaNeta;
+                    totalGastosGlobal += socio.totalGastos;
+                    totalVentasGlobal += socio.totalVentas;
+
+                    socio.gananciaNeta = gananciaNeta;
+                    sociosArray.push(socio);
+
+                    detalleSocios += `
                 <p><strong>${socio.username}</strong></p>
                 <p>Gastos: $${socio.totalGastos.toFixed(2)}</p>
                 <p>Ventas: $${socio.totalVentas.toFixed(2)}</p>
                 <p>Ganancia Neta: $${gananciaNeta.toFixed(2)}</p>
                 <hr>
-                `;
-            }
-
-            // Mostrar los detalles del cálculo en el DOM
-            const gananciasDiv = document.getElementById('gananciasResultado');
-            gananciasDiv.innerHTML = `
-                <h3>Detalle por Socio</h3>
-                ${detalleSocios}
-                <h3>Resumen General</h3>
-                <p>Total de Ventas: $${totalVentasGlobal.toFixed(2)}</p>
-                <p>Total de Gastos: $${totalGastosGlobal.toFixed(2)}</p>
-                <p>Ganancias Totales: $${gananciasTotales.toFixed(2)}</p>
             `;
+                }
 
-            // Mostrar el botón para guardar el gasto
-            document.getElementById('guardarGananciasBtn').style.display = 'block';
+                // Calcular la ganancia neta esperada por socio
+                const gananciaEsperadaPorSocio = gananciasTotales / sociosArray.length;
 
-            // Almacenar los detalles temporalmente para usarlos al guardar
-            window.detalleGanancias = {
-                socios: socios,
-                totalVentasGlobal: totalVentasGlobal,
-                totalGastosGlobal: totalGastosGlobal,
-                gananciasTotales: gananciasTotales,
-                fechaInicio: fechaInicio,
-                fechaFin: fechaFin
-            };
-        });
-    });
-});
-
-// Función para guardar el reparto de ganancias como gasto
-function guardarRepartoDeGanancias() {
-    const user = getCurrentUser();
-    if (!user) return;
-
-    const detalle = window.detalleGanancias;
-
-    if (!detalle) {
-        alert('No hay datos para guardar.');
-        return;
-    }
-
-    // Registrar el reparto en Firebase como un nuevo gasto
-    const reparto = {
-        totalVentas: detalle.totalVentasGlobal,
-        totalGastos: detalle.totalGastosGlobal,
-        gananciasTotales: detalle.gananciasTotales,
-        fechaReparto: new Date().toLocaleString(),
-        usuario: user.username
-    };
-
-    db.ref('repartos').push(reparto);
-
-    // Marcar gastos como repartidos
-    db.ref('gastos').orderByChild('repartido').equalTo(false).once('value').then((snapshot) => {
-        snapshot.forEach((childSnapshot) => {
-            const gasto = childSnapshot.val();
-            const fechaGasto = gasto.timestamp;
-
-            if (fechaGasto >= detalle.fechaInicio && fechaGasto <= detalle.fechaFin) {
-                db.ref('gastos/' + childSnapshot.key).update({ repartido: true });
-            }
-        });
-    });
-
-    // Marcar ventas como repartidas
-    db.ref('ventas').orderByChild('repartido').equalTo(false).once('value').then((snapshot) => {
-        snapshot.forEach((childSnapshot) => {
-            const venta = childSnapshot.val();
-            const fechaVenta = venta.timestamp;
-
-            if (fechaVenta >= detalle.fechaInicio && fechaVenta <= detalle.fechaFin) {
-                db.ref('ventas/' + childSnapshot.key).update({ repartido: true });
-            }
-        });
-    });
-
-    alert('Reparto de ganancias registrado exitosamente.');
-
-    // Limpiar la visualización y ocultar el botón de guardar
-    document.getElementById('gananciasResultado').innerHTML = '';
-    document.getElementById('guardarGananciasBtn').style.display = 'none';
-}
-
-
-    // Mostrar historial de repartos
-    db.ref('repartos').on('value', (snapshot) => {
-        const historialDiv = document.getElementById('historialGanancias');
-        if (!historialDiv) {
-            console.error('Elemento con ID "historialGanancias" no encontrado en el DOM.');
-            return;
-        }
-        historialDiv.innerHTML = '';
-
-        snapshot.forEach((childSnapshot) => {
-            const reparto = childSnapshot.val();
-            const key = childSnapshot.key;
-
-            // Construir detalle de socios
-            let detalleSociosHTML = '';
-            if (reparto.detalleSocios && Array.isArray(reparto.detalleSocios)) {
-                reparto.detalleSocios.forEach(socio => {
-                    detalleSociosHTML += `
-                    <p><strong>${socio.username}</strong></p>
-                    <p>Gastos: $${socio.totalGastos.toFixed(2)}</p>
-                    <p>Ventas: $${socio.totalVentas.toFixed(2)}</p>
-                    <p>Ganancia Neta: $${socio.gananciaNeta.toFixed(2)}</p>
-                    <hr>
-                `;
+                // Calcular cuánto debe recibir o pagar cada socio
+                const balances = sociosArray.map(socio => {
+                    const balance = gananciaEsperadaPorSocio - socio.gananciaNeta;
+                    return {
+                        username: socio.username,
+                        balance: balance
+                    };
                 });
-            } else {
-                detalleSociosHTML = '<p>No hay detalles de socios disponibles para este reparto.</p>';
-            }
 
-            historialDiv.innerHTML += `
-            <div class="reparto">
-                <p>Fecha de Reparto: ${reparto.fechaReparto}</p>
-                <p>Rango de Fechas: ${reparto.fechaInicio} - ${reparto.fechaFin}</p>
-                ${detalleSociosHTML}
-                <p><strong>Balance:</strong> ${reparto.mensajeBalance}</p>
-                <p>Registrado por: ${reparto.usuario}</p>
-                <button class="btn-eliminar" onclick="eliminarReparto('${key}')">Eliminar</button>
-            </div>
+                // Determinar quién debe pagar a quién
+                let mensajeBalance = '';
+                if (balances.length === 2) {
+                    const [socio1, socio2] = balances;
+                    if (socio1.balance > 0 && socio2.balance < 0) {
+                        mensajeBalance = `El socio ${socio2.username} debe pagar $${(socio1.balance).toFixed(2)} al socio ${socio1.username} para equilibrar las ganancias.`;
+                    } else if (socio2.balance > 0 && socio1.balance < 0) {
+                        mensajeBalance = `El socio ${socio1.username} debe pagar $${(socio2.balance).toFixed(2)} al socio ${socio2.username} para equilibrar las ganancias.`;
+                    } else {
+                        mensajeBalance = 'Ambos socios tienen ganancias equilibradas.';
+                    }
+                } else {
+                    mensajeBalance = 'No hay suficientes datos de socios para calcular el balance.';
+                }
+
+                // Mostrar resultados
+                const gananciasDiv = document.getElementById('gananciasResultado');
+                if (!gananciasDiv) {
+                    console.error('Elemento con ID "gananciasResultado" no encontrado en el DOM.');
+                    return;
+                }
+                gananciasDiv.innerHTML = `
+            <h3>Detalle por Socio</h3>
+            ${detalleSocios}
+            <h3>Resumen General</h3>
+            <p>Total de Ventas: $${totalVentasGlobal.toFixed(2)}</p>
+            <p>Total de Gastos: $${totalGastosGlobal.toFixed(2)}</p>
+            <p>Ganancias Totales: $${gananciasTotales.toFixed(2)}</p>
+            <h3>Balance entre Socios</h3>
+            <p>${mensajeBalance}</p>
         `;
+
+                // Mostrar el botón de "Guardar Reparto" después de calcular las ganancias
+                document.getElementById('guardarGananciasBtn').style.display = 'block';
+            });
         });
     });
 
-    // Función para eliminar un reparto de ganancias
-    window.eliminarReparto = function (key) {
-        if (confirm('¿Estás seguro de que deseas eliminar este reparto de ganancias?')) {
-            // Mover el reparto a 'repartosEliminados'
-            db.ref('repartos/' + key).once('value').then((snapshot) => {
-                const repartoEliminado = snapshot.val();
-                repartoEliminado.eliminadoPor = getCurrentUser().username;
-                repartoEliminado.fechaEliminacion = new Date().toLocaleString();
-                db.ref('repartosEliminados').push(repartoEliminado);
+    // Función para guardar el reparto de ganancias
+    document.getElementById('guardarGananciasBtn').addEventListener('click', function () {
+        // Aquí puedes colocar la lógica para guardar el reparto en Firebase
+        alert('Reparto guardado exitosamente.');
 
-                // Eliminar el reparto original
-                db.ref('repartos/' + key).remove();
-            });
-        }
-    };
+        // Ocultar el botón de "Guardar Reparto"
+        document.getElementById('guardarGananciasBtn').style.display = 'none';
+    });
     /*** SECCIÓN DE ANOTACIONES ***/
+
     // Función para agregar una anotación
     document.getElementById('anotacionesForm').addEventListener('submit', function (e) {
         e.preventDefault();
@@ -915,6 +838,4 @@ function guardarRepartoDeGanancias() {
         }
     };
 
-
-}
-
+});

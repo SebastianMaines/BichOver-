@@ -876,7 +876,6 @@ document.getElementById('gananciasForm').addEventListener('submit', function (e)
 
 });
 }
-}
 
 
 

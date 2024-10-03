@@ -915,6 +915,6 @@ function guardarRepartoDeGanancias() {
         }
     };
 
-});
+
 }
 

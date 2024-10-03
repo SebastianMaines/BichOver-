@@ -1,16 +1,15 @@
+
 // Esperar a que el documento esté completamente cargado 
 document.addEventListener('DOMContentLoaded', function () {
-console.log("Firebase inicializado");
     // Configuración de Firebase
     const firebaseConfig = {
-                apiKey: "AIzaSyAOAbpgX2VmylNbP6WRp9CwzLNq_8eVjZI",
+    apiKey: "AIzaSyAOAbpgX2VmylNbP6WRp9CwzLNq_8eVjZI",
         authDomain: "bichbye--piscinas.firebaseapp.com",
         databaseURL: "https://bichbye--piscinas-default-rtdb.firebaseio.com",
         projectId: "bichbye--piscinas",
         storageBucket: "bichbye--piscinas.appspot.com",
         messagingSenderId: "753158630879",
         appId: "1:753158630879:web:28e3a5799381153406286a"
-
     };
 
     // Inicializar Firebase
@@ -18,25 +17,13 @@ console.log("Firebase inicializado");
         firebase.initializeApp(firebaseConfig);
     }
 
-    // Verificar si la base de datos está siendo cargada
-    db.ref('gastos').once('value', (snapshot) => {
-        console.log("Base de datos cargada, snapshot:", snapshot.val());
-        if (snapshot.exists()) {
-            console.log("Datos de gastos encontrados");
-        } else {
-            console.log("No hay datos en la base de datos de gastos");
-        }
-    }).catch((error) => {
-        console.error("Error al cargar la base de datos:", error);
-    });
-});
     // Referencias a Firebase
     const db = firebase.database();
 
     // Variable para almacenar el usuario actual
     let currentUser = null;
 
-    /*** AUTENTICACIÓN ***/
+    /*** AUTENTICACIÓN POR NOMBRE DE USUARIO Y CONTRASEÑA ***/
     // Usuarios predefinidos
     const usuarios = {
         'Seba': {
@@ -266,8 +253,8 @@ console.log("Firebase inicializado");
 
         const reparto = {
             totalVentas: detalle.totalVentasGlobal,
-            totalGastos: detalle.totalGastosGlobal,
-gananciasTotales: detalle.gananciasTotales, 
+            totalGastos: detalle.totalGastosGlobal, 
+            gananciasTotales: detalle.gananciasTotales,
             fechaReparto: new Date().toLocaleString(),
             usuario: getCurrentUser().username
         };
@@ -363,5 +350,6 @@ gananciasTotales: detalle.gananciasTotales,
         }
     };
 });
+
 
 

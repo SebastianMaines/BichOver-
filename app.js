@@ -809,6 +809,7 @@ document.getElementById('gananciasForm').addEventListener('submit', function (e)
 
 
 
+
     
     /*** SECCIÓN DE ANOTACIONES ***/
     // Función para agregar una anotación
@@ -874,7 +875,7 @@ document.getElementById('gananciasForm').addEventListener('submit', function (e)
     };
 
 });
-}
+
 
 
 

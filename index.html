@@ -133,7 +133,21 @@
                     <th>Acciones</th>
                 </tr>
             </thead>
-            <tbody id="clientesBody"></tbody>
+            <tbody id="clientesBody">
+                <tr>
+                    <td data-label="Razón Social">Empresa XYZ</td>
+                    <td data-label="Localidad">Ciudad ABC</td>
+                    <td data-label="Dirección">Calle 123</td>
+                    <td data-label="Teléfono">123456789</td>
+                    <td data-label="Frascos Comprados">50</td>
+                    <td data-label="Fecha Última Compra">2024-09-30</td>
+                    <td data-label="Potencial">Alto</td>
+                    <td data-label="Acciones">
+                        <button class="btn-editar">Editar</button>
+                        <button class="btn-eliminar">Eliminar</button>
+                    </td>
+                </tr>
+            </tbody>
         </table>
     </section>
 
@@ -152,7 +166,19 @@
                     <th>Acciones</th>
                 </tr>
             </thead>
-            <tbody id="clientesPotencialesBody"></tbody>
+            <tbody id="clientesPotencialesBody">
+                <tr>
+                    <td data-label="Razón Social">Empresa ABC</td>
+                    <td data-label="Localidad">Ciudad XYZ</td>
+                    <td data-label="Dirección">Calle 456</td>
+                    <td data-label="Teléfono">987654321</td>
+                    <td data-label="Frascos Verano 2024">100</td>
+                    <td data-label="Acciones">
+                        <button class="btn-editar">Editar</button>
+                        <button class="btn-eliminar">Eliminar</button>
+                    </td>
+                </tr>
+            </tbody>
         </table>
     </section>
 
@@ -183,11 +209,25 @@
                     <th>Cliente</th>
                     <th>Cantidad de Frascos</th>
                     <th>Precio Total</th>
-                    <th>Registrado por</th>
+
+
+<th>Registrado por</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
-            <tbody id="ventasBody"></tbody>
+            <tbody id="ventasBody">
+                <tr>
+                    <td data-label="Fecha">2024-09-30</td>
+                    <td data-label="Cliente">Cliente ABC</td>
+                    <td data-label="Cantidad de Frascos">25</td>
+                    <td data-label="Precio Total">$2500</td>
+                    <td data-label="Registrado por">Juan</td>
+                    <td data-label="Acciones">
+                        <button class="btn-editar">Editar</button>
+                        <button class="btn-eliminar">Eliminar</button>
+                    </td>
+                </tr>
+            </tbody>
         </table>
     </section>
 
@@ -242,7 +282,12 @@
                         <th>Stock de Frascos</th>
                     </tr>
                 </thead>
-                <tbody id="stockBody"></tbody>
+                <tbody id="stockBody">
+                    <tr>
+                        <td data-label="Usuario">Juan</td>
+                        <td data-label="Stock de Frascos">100</td>
+                    </tr>
+                </tbody>
             </table>
         </div>
     </section>
@@ -259,9 +304,9 @@
         function showSection(sectionId) {
             const sections = document.querySelectorAll('.section');
             sections.forEach(section => {
-                section.style.display = 'none';  // Ocultar todas las secciones
+                section.style.display = 'none'; // Ocultar todas las secciones
             });
-            document.getElementById(sectionId).style.display = 'block';  // Mostrar la sección seleccionada
+            document.getElementById(sectionId).style.display = 'block'; // Mostrar la sección seleccionada
         }
 
         // Función para alternar entre el formulario de inicio de sesión y registro

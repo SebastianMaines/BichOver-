@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Emprendimiento</title>
+    <title>BICHOVER!</title>
     <link rel="stylesheet" href="styles.css">
     <!-- Agregar íconos de Google Fonts para mejorar la interfaz -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
@@ -14,7 +14,6 @@
     <!-- Barra de navegación -->
     <nav class="navbar">
         <img src="./Captura.PNG" alt="">
-        <h1>BichOver!</h1>
         <div id="user-info">
             <!-- Mostrar información del usuario autenticado -->
             <span id="user-username"></span>
@@ -83,10 +82,10 @@
 
             <div id="destinatarioSection" style="display:none;">
                 <label for="destinatario">Seleccionar destinatario:</label>
-                    <select id="destinatario">
-                        <option value="Juan">Juan</option>
-                        <option value="Seba">Seba</option>
-                    </select>   
+                <select id="destinatario">
+                    <option value="Juan">Juan</option>
+                    <option value="Seba">Seba</option>
+                </select>
             </div>
 
             <button type="submit">Registrar Gasto</button>
@@ -218,9 +217,7 @@
                     <th>Cliente</th>
                     <th>Cantidad de Frascos</th>
                     <th>Precio Total</th>
-
-
-<th>Registrado por</th>
+                    <th>Registrado por</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -252,9 +249,9 @@
 
             <button type="submit">Calcular Ganancias</button>
         </form>
-<div id ="gananciasResultado"></div>
-        <button id="guardarGananciasBtn" style="display:none;" onclick="guardarRepartoDeGanancias()">Guardar Gasto</button>
-        
+        <div id="gananciasResultado"></div>
+        <button id="guardarGananciasBtn" style="display:none;" onclick="guardarRepartoDeGanancias()">Guardar
+            Reparto</button>
 
         <h3>Historial de Repartos</h3>
         <div id="historialGanancias"></div>
@@ -332,7 +329,7 @@
                 loginSection.style.display = 'none';
                 registerSection.style.display = 'block';
             }
-        }
+        }   
     </script>
 
 </body>

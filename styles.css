@@ -154,6 +154,34 @@ table th {
     form {
         padding: 0 20px;
     }
+    
+    table,thead,tbody,th,td,tr{
+display: block;
+    width: 100%;
+    }
+
+    thead tr {
+        display: none;
+    }
+    tbody tr {
+        margin-bottom: 10px;
+        display: flex;
+        flex-direction: column;
+        background-color: #f9f9f9;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 10px;
+    }
+    td { text-align: left;
+        padding: 10px 0 ;
+        border: none;
+
+    td::before {
+        content: attr(data-label);
+        font-weight: bold;
+        margin-right: 10px;
+    }
+    
 }
 
 

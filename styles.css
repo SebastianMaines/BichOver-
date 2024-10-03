@@ -154,15 +154,21 @@ table th {
     form {
         padding: 0 20px;
     }
-    
-    table,thead,tbody,th,td,tr{
-display: block;
-    width: 100%;
+
+    table,
+    thead,
+    tbody,
+    th,
+    td,
+    tr {
+        display: block;
+        width: 100%;
     }
 
     thead tr {
         display: none;
     }
+
     tbody tr {
         margin-bottom: 10px;
         display: flex;
@@ -172,53 +178,56 @@ display: block;
         border-radius: 4px;
         padding: 10px;
     }
-    td { text-align: left;
-        padding: 10px 0 ;
+
+    td {
+        text-align: left;
+        padding: 10px 0;
         border: none;
 
-    td::before {
-        content: attr(data-label);
-        font-weight: bold;
-        margin-right: 10px;
+        td::before {
+            content: attr(data-label);
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
     }
-    
-}
 
 
-.btn-editar,
-.btn-eliminar {
-    padding: 10px 15px;
-    /* Espaciado interno */
-    border: none;
-    /* Sin borde */
-    border-radius: 5px;
-    /* Bordes redondeados */
-    cursor: pointer;
-    /* Cambia el cursor al pasar sobre el botón */
-    margin-right: 5px;
-    /* Espacio entre los botones */
-}
+    .btn-editar,
+    .btn-eliminar {
+        padding: 10px 15px;
+        /* Espaciado interno */
+        border: none;
+        /* Sin borde */
+        border-radius: 5px;
+        /* Bordes redondeados */
+        cursor: pointer;
+        /* Cambia el cursor al pasar sobre el botón */
+        margin-right: 5px;
+        /* Espacio entre los botones */
+    }
 
-.btn-editar {
-    background-color: #4CAF50;
-    /* Color verde */
-    color: white;
-    /* Texto blanco */
-}
+    .btn-editar {
+        background-color: #4CAF50;
+        /* Color verde */
+        color: white;
+        /* Texto blanco */
+    }
 
-.btn-editar:hover {
-    background-color: #45a049;
-    /* Color verde más oscuro al pasar el mouse */
-}
+    .btn-editar:hover {
+        background-color: #45a049;
+        /* Color verde más oscuro al pasar el mouse */
+    }
 
-.btn-eliminar {
-    background-color: #f44336;
-    /* Color rojo */
-    color: white;
-    /* Texto blanco */
-}
+    .btn-eliminar {
+        background-color: #f44336;
+        /* Color rojo */
+        color: white;
+        /* Texto blanco */
+    }
 
-.btn-eliminar:hover {
-    background-color: #e53935;
-    /* Color rojo más oscuro al pasar el mouse */
+    .btn-eliminar:hover {
+        background-color: #e53935;
+        /* Color rojo más oscuro al pasar el mouse */
+    }
 }

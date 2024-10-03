@@ -152,7 +152,8 @@ function actualizarGasto(usuario, monto) {
     const usuarioRef = db.ref('usuarios/' + usuario + '/gastos');
     usuarioRef.transaction(function (currentGastos) {
         return (currentGastos || 0) + monto;
-    });
+    });}
+    
 
     // Función para mostrar los gastos en tiempo real
     db.ref('gastos').on('value', (snapshot) => {

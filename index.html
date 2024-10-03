@@ -72,6 +72,7 @@
                 <option value="nafta">Nafta</option>
                 <option value="peaje">Peaje</option>
                 <option value="otro">Otro</option>
+                <option value="transferencia">Transferencia</option>
             </select>
 
             <label for="monto">Monto:</label>
@@ -79,6 +80,14 @@
 
             <label for="razon">Razón:</label>
             <input type="text" id="razon" placeholder="Razón del gasto" required>
+
+            <div id="destinatarioSection" style="display:none;">
+                <label for="destinatario">Seleccionar destinatario:</label>
+                    <select id="destinatario">
+                        <option value="Juan">Juan</option>
+                        <option value="Seba">Seba</option>
+                    </select>   
+            </div>
 
             <button type="submit">Registrar Gasto</button>
         </form>

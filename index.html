@@ -4,334 +4,280 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="BichOver! Piscinas - Sistema de control de gastos, ventas y gestión de clientes">
+    <meta name="keywords" content="BichOver, piscinas, gastos, ventas, clientes">
     <title>BICHOVER!</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- Agregar íconos de Google Fonts para mejorar la interfaz -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
 <body>
     <!-- Barra de navegación -->
     <nav class="navbar">
-        <img src="./Captura.PNG" alt="">
+        <img src="./Captura.PNG" alt="Logo de BichOver">
         <div id="user-info">
-            <!-- Mostrar información del usuario autenticado -->
             <span id="user-username"></span>
-            <button id="logout-btn">Cerrar Sesión</button>
+            <button id="logout-btn">
+                <span class="material-icons">logout</span> Cerrar Sesión
+            </button>
         </div>
     </nav>
 
-    <!-- Botones para navegar entre las secciones -->
-    <div class="navigation">
-        <button onclick="showSection('gastos')">Gastos</button>
-        <button onclick="showSection('clientes')">Clientes</button>
-        <button onclick="showSection('clientesPotenciales')">Clientes Potenciales</button>
-        <button onclick="showSection('ventas')">Ventas</button>
-        <button onclick="showSection('ganancias')">Reparto de Ganancias</button>
-        <button onclick="showSection('anotaciones')">Anotaciones</button>
-        <!-- Botón para la sección de Stock -->
-        <button onclick="showSection('stock')">Stock</button>
-    </div>
+    <!-- Menú de navegación -->
+    <nav class="navigation">
+        <button onclick="showSection('gastos')">
+            <span class="material-icons">attach_money</span> Gastos
+        </button>
+        <button onclick="showSection('clientes')">
+            <span class="material-icons">people</span> Clientes
+        </button>
+        <button onclick="showSection('clientesPotenciales')">
+            <span class="material-icons">star_outline</span> Clientes Potenciales
+        </button>
+        <button onclick="showSection('ventas')">
+            <span class="material-icons">shopping_cart</span> Ventas
+        </button>
+        <button onclick="showSection('ganancias')">
+            <span class="material-icons">trending_up</span> Reparto de Ganancias
+        </button>
+        <button onclick="showSection('anotaciones')">
+            <span class="material-icons">note_add</span> Anotaciones
+        </button>
+        <button onclick="showSection('stock')">
+            <span class="material-icons">inventory</span> Stock
+        </button>
+    </nav>
 
-    <!-- Sección de Inicio de Sesión -->
-    <section id="login" class="section">
-        <h2>Inicio de Sesión</h2>
-        <form id="loginForm">
-            <input type="text" id="username" placeholder="Nombre de Usuario" required>
-            <input type="password" id="password" placeholder="Contraseña" required>
-            <button type="submit">Iniciar Sesión</button>
-        </form>
-    </section>
+    <!-- Sección de contenido principal -->
+    <main class="container">
+        <!-- Sección de Inicio de Sesión -->
+        <section id="login" class="section">
+            <h2>Inicio de Sesión</h2>
+            <form id="loginForm">
+                <label for="username">Nombre de Usuario:</label>
+                <input type="text" id="username" placeholder="Nombre de Usuario" required>
+                <label for="password">Contraseña:</label>
+                <input type="password" id="password" placeholder="Contraseña" required>
+                <button type="submit">Iniciar Sesión</button>
+            </form>
+        </section>
 
-    <!-- Sección de Registro -->
-    <section id="register" class="section" style="display:none;">
-        <h2>Registrarse</h2>
-        <form id="registerForm">
-            <label for="registerEmail">Correo Electrónico:</label>
-            <input type="email" id="registerEmail" placeholder="Correo electrónico" required>
+        <!-- Sección de Registro -->
+        <section id="register" class="section" style="display:none;">
+            <h2>Registrarse</h2>
+            <form id="registerForm">
+                <label for="registerEmail">Correo Electrónico:</label>
+                <input type="email" id="registerEmail" placeholder="Correo electrónico" required>
+                <label for="registerPassword">Contraseña:</label>
+                <input type="password" id="registerPassword" placeholder="Contraseña" required>
+                <button type="submit">Registrarse</button>
+            </form>
+            <p>¿Ya tienes una cuenta? <a href="#" onclick="toggleForms()">Inicia sesión aquí</a></p>
+        </section>
 
-            <label for="registerPassword">Contraseña:</label>
-            <input type="password" id="registerPassword" placeholder="Contraseña" required>
+        <!-- Sección de Gastos -->
+        <section id="gastos" class="section" style="display:none;">
+            <h2>Registrar Gasto</h2>
+            <form id="gastosForm">
+                <label for="tipo">Tipo de gasto:</label>
+                <select id="tipo">
+                    <option value="frascos">Frascos</option>
+                    <option value="producto">Producto</option>
+                    <option value="etiquetas">Etiquetas</option>
+                    <option value="cajas">Cajas</option>
+                    <option value="nafta">Nafta</option>
+                    <option value="peaje">Peaje</option>
+                    <option value="otro">Otro</option>
+                    <option value="transferencia">Transferencia</option>
+                </select>
 
-            <button type="submit">Registrarse</button>
-        </form>
-        <p>¿Ya tienes una cuenta? <a href="#" onclick="toggleForms()">Inicia sesión aquí</a></p>
-    </section>
+                <label for="monto">Monto:</label>
+                <input type="number" id="monto" placeholder="Monto del gasto" required>
 
-    <!-- Sección de Gastos -->
-    <section id="gastos" class="section" style="display:none;">
-        <h2>Registrar Gasto</h2>
-        <form id="gastosForm">
-            <label for="tipo">Tipo de gasto:</label>
-            <select id="tipo">
-                <option value="frascos">Frascos</option>
-                <option value="producto">Producto</option>
-                <option value="etiquetas">Etiquetas</option>
-                <option value="cajas">Cajas</option>
-                <option value="nafta">Nafta</option>
-                <option value="peaje">Peaje</option>
-                <option value="otro">Otro</option>
-                <option value="transferencia">Transferencia</option>
-            </select>
+                <label for="razon">Razón:</label>
+                <input type="text" id="razon" placeholder="Razón del gasto" required>
 
-            <label for="monto">Monto:</label>
-            <input type="number" id="monto" placeholder="Monto del gasto" required>
+                <div id="destinatarioSection" style="display:none;">
+                    <label for="destinatario">Seleccionar destinatario:</label>
+                    <select id="destinatario">
+                        <option value="Juan">Juan</option>
+                        <option value="Seba">Seba</option>
+                    </select>
+                </div>
 
-            <label for="razon">Razón:</label>
-            <input type="text" id="razon" placeholder="Razón del gasto" required>
+                <button type="submit">Registrar Gasto</button>
+            </form>
+            <div id="gastosReporte">
+                <h3>Reporte de Gastos</h3>
+                <div id="listaGastos"></div>
+            </div>
+        </section>
 
-            <div id="destinatarioSection" style="display:none;">
-                <label for="destinatario">Seleccionar destinatario:</label>
-                <select id="destinatario">
-                    <option value="Juan">Juan</option>
-                    <option value="Seba">Seba</option>
+        <!-- Sección de Clientes -->
+        <section id="clientes" class="section" style="display:none;">
+            <h2>Clientes</h2>
+            <form id="clientesForm">
+                <label for="razonSocial">Razón Social:</label>
+                <input type="text" id="razonSocial" placeholder="Razón Social" required>
+                <label for="localidad">Localidad:</label>
+                <input type="text" id="localidad" placeholder="Localidad" required>
+                <label for="direccion">Dirección:</label>
+                <input type="text" id="direccion" placeholder="Dirección" required>
+                <label for="telefono">Teléfono:</label>
+                <input type="tel" id="telefono" placeholder="Teléfono" required>
+                <button type="submit">Agregar Cliente</button>
+            </form>
+            <div class="sort-options">
+                <label for="sortSelect">Ordenar por:</label>
+                <select id="sortSelect">
+                    <option value="razonSocial">Nombre (A-Z)</option>
+                    <option value="localidad">Localidad</option>
                 </select>
             </div>
-
-            <button type="submit">Registrar Gasto</button>
-        </form>
-
-        <!-- Lista de gastos -->
-        <div id="gastosReporte">
-            <h3>Reporte de Gastos</h3>
-            <div id="listaGastos"></div>
-        </div>
-    </section>
-
-    <!-- Sección de Clientes -->
-    <section id="clientes" class="section" style="display:none;">
-        <h2>Clientes</h2>
-        <form id="clientesForm">
-            <label for="razonSocial">Razón Social:</label>
-            <input type="text" id="razonSocial" placeholder="Razón Social" required>
-
-            <label for="localidad">Localidad:</label>
-            <input type="text" id="localidad" placeholder="Localidad" required>
-
-            <label for="direccion">Dirección:</label>
-            <input type="text" id="direccion" placeholder="Dirección" required>
-
-            <label for="telefono">Teléfono:</label>
-            <input type="tel" id="telefono" placeholder="Teléfono" required>
-
-            <button type="submit">Agregar Cliente</button>
-        </form>
-
-        <!-- Opciones de ordenamiento -->
-        <div class="sort-options">
-            <label for="sortSelect">Ordenar por:</label>
-            <select id="sortSelect">
-                <option value="razonSocial">Nombre (A-Z)</option>
-                <option value="localidad">Localidad</option>
-            </select>
-        </div>
-
-        <!-- Tabla para mostrar la lista de clientes -->
-        <h3>Lista de Clientes</h3>
-        <table id="clientesTable">
-            <thead>
-                <tr>
-                    <th>Razón Social</th>
-                    <th>Localidad</th>
-                    <th>Dirección</th>
-                    <th>Teléfono</th>
-                    <th>Frascos Comprados</th>
-                    <th>Fecha Última Compra</th>
-                    <th>Potencial</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="clientesBody">
-                <tr>
-                    <td data-label="Razón Social">Empresa XYZ</td>
-                    <td data-label="Localidad">Ciudad ABC</td>
-                    <td data-label="Dirección">Calle 123</td>
-                    <td data-label="Teléfono">123456789</td>
-                    <td data-label="Frascos Comprados">50</td>
-                    <td data-label="Fecha Última Compra">2024-09-30</td>
-                    <td data-label="Potencial">Alto</td>
-                    <td data-label="Acciones">
-                        <button class="btn-editar">Editar</button>
-                        <button class="btn-eliminar">Eliminar</button>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </section>
-
-    <!-- Sección de Clientes Potenciales -->
-    <section id="clientesPotenciales" class="section" style="display:none;">
-        <h2>Clientes Potenciales</h2>
-        <!-- Tabla para mostrar la lista de clientes potenciales -->
-        <table id="clientesPotencialesTable">
-            <thead>
-                <tr>
-                    <th>Razón Social</th>
-                    <th>Localidad</th>
-                    <th>Dirección</th>
-                    <th>Teléfono</th>
-                    <th>Frascos Verano 2024</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="clientesPotencialesBody">
-                <tr>
-                    <td data-label="Razón Social">Empresa ABC</td>
-                    <td data-label="Localidad">Ciudad XYZ</td>
-                    <td data-label="Dirección">Calle 456</td>
-                    <td data-label="Teléfono">987654321</td>
-                    <td data-label="Frascos Verano 2024">100</td>
-                    <td data-label="Acciones">
-                        <button class="btn-editar">Editar</button>
-                        <button class="btn-eliminar">Eliminar</button>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </section>
-
-    <!-- Sección de Ventas -->
-    <section id="ventas" class="section" style="display:none;">
-        <h2>Registrar Venta</h2>
-        <form id="ventasForm">
-            <label for="clienteVenta">Cliente:</label>
-            <select id="clienteVenta" required>
-                <!-- Opciones cargadas dinámicamente -->
-            </select>
-
-            <label for="cantidadVenta">Cantidad de Frascos:</label>
-            <input type="number" id="cantidadVenta" placeholder="Cantidad de frascos vendidos" required>
-
-            <label for="precioVenta">Precio de Venta (por frasco):</label>
-            <input type="number" id="precioVenta" placeholder="Precio por frasco" required>
-
-            <button type="submit">Registrar Venta</button>
-        </form>
-
-        <!-- Tabla para mostrar la lista de ventas -->
-        <h3>Lista de Ventas</h3>
-        <table id="ventasTable">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th>Cantidad de Frascos</th>
-                    <th>Precio Total</th>
-                    <th>Registrado por</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="ventasBody">
-                <tr>
-                    <td data-label="Fecha">2024-09-30</td>
-                    <td data-label="Cliente">Cliente ABC</td>
-                    <td data-label="Cantidad de Frascos">25</td>
-                    <td data-label="Precio Total">$2500</td>
-                    <td data-label="Registrado por">Juan</td>
-                    <td data-label="Acciones">
-                        <button class="btn-editar">Editar</button>
-                        <button class="btn-eliminar">Eliminar</button>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </section>
-
-    <!-- Sección de Reparto de Ganancias -->
-    <section id="ganancias" class="section" style="display:none;">
-        <h2>Reparto de Ganancias</h2>
-        <form id="gananciasForm">
-            <label for="fechaInicio">Fecha Inicio:</label>
-            <input type="date" id="fechaInicio" required>
-
-            <label for="fechaFin">Fecha Fin:</label>
-            <input type="date" id="fechaFin" required>
-
-            <button type="submit">Calcular Ganancias</button>
-        </form>
-        <div id="gananciasResultado"></div>
-        <button id="guardarGananciasBtn" style="display:none;" onclick="guardarRepartoDeGanancias()">Guardar
-            Reparto</button>
-
-        <h3>Historial de Repartos</h3>
-        <div id="historialGanancias"></div>
-    </section>
-
-    <!-- Sección de Anotaciones -->
-    <section id="anotaciones" class="section" style="display:none;">
-        <h2>Anotaciones</h2>
-        <form id="anotacionesForm">
-            <label for="anotacion">Anotación:</label>
-            <textarea id="anotacion" placeholder="Escribe tu anotación aquí..." required></textarea>
-
-            <button type="submit">Agregar Anotación</button>
-        </form>
-
-        <!-- Lista de anotaciones -->
-        <div id="listaAnotaciones">
-            <h3>Lista de Anotaciones</h3>
-            <!-- Las anotaciones se mostrarán aquí -->
-        </div>
-    </section>
-
-    <!-- Sección de Stock -->
-    <section id="stock" class="section" style="display:none;">
-        <h2>Gestión de Stock</h2>
-        <form id="stockForm">
-            <label for="stockInput">Agregar al Stock:</label>
-            <input type="number" id="stockInput" placeholder="Cantidad de frascos a agregar" required>
-            <button type="submit">Actualizar Stock</button>
-        </form>
-        <div id="stockInfo">
-            <h3>Stock Actual de Todos los Usuarios</h3>
-            <table id="stockTable">
+            <h3>Lista de Clientes</h3>
+            <table id="clientesTable">
                 <thead>
                     <tr>
-                        <th>Usuario</th>
-                        <th>Stock de Frascos</th>
+                        <th>Razón Social</th>
+                        <th>Localidad</th>
+                        <th>Dirección</th>
+                        <th>Teléfono</th>
+                        <th>Frascos Comprados</th>
+                        <th>Fecha Última Compra</th>
+                        <th>Potencial</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
-                <tbody id="stockBody">
-                    <tr>
-                        <td data-label="Usuario">Juan</td>
-                        <td data-label="Stock de Frascos">100</td>
-                    </tr>
-                </tbody>
+                <tbody id="clientesBody"></tbody>
             </table>
-        </div>
-    </section>
+        </section>
 
-    <!-- Firebase y archivo app.js -->
-    <!-- Asegúrate de reemplazar los scripts de Firebase con las versiones correctas -->
-    <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-auth-compat.js"></script>
-    <script src="app.js"></script>
+        <!-- Sección de Clientes Potenciales -->
+        <section id="clientesPotenciales" class="section" style="display:none;">
+            <h2>Clientes Potenciales</h2>
+            <table id="clientesPotencialesTable">
+                <thead>
+                    <tr>
+                        <th>Razón Social</th>
+                        <th>Localidad</th>
+                        <th>Dirección</th>
+                        <th>Teléfono</th>
+                        <th>Frascos Verano 2024</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="clientesPotencialesBody"></tbody>
+            </table>
+        </section>
 
-    <script>
-        // Función para mostrar la sección seleccionada
-        function showSection(sectionId) {
-            const sections = document.querySelectorAll('.section');
-            sections.forEach(section => {
-                section.style.display = 'none'; // Ocultar todas las secciones
-            });
-            document.getElementById(sectionId).style.display = 'block'; // Mostrar la sección seleccionada
-        }
+        <!-- Sección de Ventas -->
+        <section id="ventas" class="section" style="display:none;">
+            <h2>Registrar Venta</h2>
+            <form id="ventasForm">
+                <label for="clienteVenta">Cliente:</label>
+                <select id="clienteVenta" required></select>
+                <label for="cantidadVenta">Cantidad de Frascos:</label>
+                <input type="number" id="cantidadVenta" placeholder="Cantidad de frascos vendidos" required>
+                <label for="precioVenta">Precio de Venta (por frasco):</label>
+                <input type="number" id="precioVenta" placeholder="Precio por frasco" required>
+                <button type="submit">Registrar Venta</button>
+            </form>
+            <h3>Lista de Ventas</h3>
+            <table id="ventasTable">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Cantidad de Frascos</th>
+                        <th>Precio Total</th>
+                        <th>Registrado por</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="ventasBody"></tbody>
+            </table>
+        </section>
 
-        // Función para alternar entre el formulario de inicio de sesión y registro
-        function toggleForms() {
-            const loginSection = document.getElementById('login');
-            const registerSection = document.getElementById('register');
-            if (loginSection.style.display === 'none') {
-                loginSection.style.display = 'block';
-                registerSection.style.display = 'none';
-            } else {
-                loginSection.style.display = 'none';
-                registerSection.style.display = 'block';
+        <!-- Sección de Reparto de Ganancias -->
+        <section id="ganancias" class="section" style="display:none;">
+            <h2>Reparto de Ganancias</h2>
+            <form id="gananciasForm">
+                <label for="fechaInicio">Fecha Inicio:</label>
+                <input type="date" id="fechaInicio" required>
+                <label for="fechaFin">Fecha Fin:</label>
+                <input type="date" id="fechaFin" required>
+                <button type="submit">Calcular Ganancias</button>
+            </form>
+            <div id="gananciasResultado"></div>
+            <button id="guardarGananciasBtn" style="display:none;" onclick="guardarRepartoDeGanancias()">Guardar
+                Reparto</button>
+            <h3>Historial de Repartos</h3>
+            <div id="historialGanancias"></div>
+        </section>
+
+        <!-- Sección de Anotaciones -->
+        <section id="anotaciones" class="section" style="display:none;">
+            <h2>Anotaciones</h2>
+            <form id="anotacionesForm">
+                <label for="anotacion">Anotación:</label>
+                <textarea id="anotacion" placeholder="Escribe tu anotación aquí..." required></textarea>
+                <button type="submit">Agregar Anotación</button>
+            </form>
+            <div id="listaAnotaciones">
+                <h3>Lista de Anotaciones</h3>
+            </div>
+        </section>
+
+        <!-- Sección de Stock -->
+        <section id="stock" class="section" style="display:none;">
+            <h2>Gestión de Stock</h2>
+            <form id="stockForm">
+                <label for="stockInput">Agregar al Stock:</label>
+                <input type="number" id="stockInput" placeholder="Cantidad de frascos a agregar" required>
+                <button type="submit">Actualizar Stock</button>
+            </form>
+            <div id="stockInfo">
+                <h3>Stock Actual de Todos los Usuarios</h3>
+                <table id="stockTable">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Stock de Frascos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Script para manejo de navegación -->
+        <script>
+            function showSection(sectionId) {
+                // Ocultar todas las secciones
+                const sections = document.querySelectorAll('.section');
+                sections.forEach(section => {
+                    section.style.display = 'none';
+                });
+
+                // Mostrar la sección seleccionada
+                const selectedSection = document.getElementById(sectionId);
+                if (selectedSection) {
+                    selectedSection.style.display = 'block';
+                }
             }
-        }   
-    </script>
+        </script>
+        $1
 
+        <!-- Menú Flotante (Para Móviles) -->
+        <div class="floating-nav">
+            <span class="material-icons">menu</span>
+        </div>
+
+        <!-- Firebase y archivo app.js -->
+        <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-database-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-auth-compat.js"></script>
+        <script src="app.js"></script>
 </body>
 
 </html>

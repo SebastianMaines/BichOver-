@@ -163,6 +163,42 @@ table th {
     color: white;
 }
 
+
+/* Estilo para las tarjetas de gastos */
+.gastos-tarjetas {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.gasto-tarjeta {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.gasto-tarjeta p {
+    margin: 5px 0;
+}
+
+.gasto-tarjeta .btn-eliminar {
+    align-self: flex-end;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.gasto-tarjeta .btn-eliminar:hover {
+    background-color: #e53935;
+}
+
 /* Button Styling */
 .btn-editar,
 .btn-eliminar {
@@ -267,5 +303,74 @@ table th {
 @media (max-width: 768px) {
     .floating-nav {
         display: block;
+    }
+}
+
+/* Barra de navegación */
+.navbar {
+    background: linear-gradient(45deg, #006fee, #1e9aec);
+    color: white;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+/* Centrar logo y botón de hamburguesa */
+.navbar img {
+    height: 50px;
+}
+
+#user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hamburger-menu {
+    display: none;
+    cursor: pointer;
+    padding: 10px;
+    background-color: #006fee;
+    border-radius: 5px;
+    color: white;
+    position: absolute;
+    top: 50%;
+    right: 50%;
+    transform: translate(50%, -50%);
+    /* Centrando el botón en el medio */
+}
+
+.hamburger-menu span {
+    font-size: 30px;
+}
+
+/* Para móviles */
+@media (max-width: 768px) {
+    .hamburger-menu {
+        display: block;
+    }
+
+    .navigation {
+        display: none;
+        flex-direction: column;
+        background-color: #1e9aec;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        width: 100%;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .navigation.active {
+        display: flex;
+    }
+
+    .navigation button {
+        width: 100%;
+        text-align: left;
+        padding: 15px 20px;
     }
 }

@@ -21,10 +21,14 @@
                 <span class="material-icons">logout</span> Cerrar Sesión
             </button>
         </div>
+        <!-- Botón de menú hamburguesa -->
+        <div class="hamburger-menu" id="hamburger-menu">
+            <span class="material-icons">menu</span>
+        </div>
     </nav>
 
     <!-- Menú de navegación -->
-    <nav class="navigation">
+    <nav class="navigation" id="nav-links">
         <button onclick="showSection('gastos')">
             <span class="material-icons">attach_money</span> Gastos
         </button>
@@ -109,9 +113,10 @@
             </form>
             <div id="gastosReporte">
                 <h3>Reporte de Gastos</h3>
-                <div id="listaGastos"></div>
+                <div id="listaGastos" class="gastos-tarjetas"></div>
             </div>
         </section>
+
 
         <!-- Sección de Clientes -->
         <section id="clientes" class="section" style="display:none;">

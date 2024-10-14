@@ -169,11 +169,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const claseRepartido = repartido ? 'repartido' : '';
 
             listaGastos.innerHTML += `
-                <p class="${claseRepartido}">
-                    ${gasto.fecha} - ${gasto.tipo}: $${gasto.monto.toFixed(2)} (${gasto.razon}) - Registrado por: ${gasto.usuario}
-                    <button class="btn-eliminar" onclick="eliminarGasto('${key}')">Eliminar</button>
-                </p>
-            `;
+            <div class="gasto-tarjeta ${claseRepartido}">
+                <p><strong>Fecha:</strong> ${gasto.fecha}</p>
+                <p><strong>Tipo:</strong> ${gasto.tipo}</p>
+                <p><strong>Monto:</strong> $${gasto.monto.toFixed(2)}</p>
+                <p><strong>Razón:</strong> ${gasto.razon}</p>
+                <p><strong>Registrado por:</strong> ${gasto.usuario}</p>
+                <button class="btn-eliminar" onclick="eliminarGasto('${key}')">Eliminar</button>
+            </div>
+        `;
         });
     });
 
@@ -840,3 +844,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 })
+
+// Manejar la apertura y cierre del menú hamburguesa
+document.getElementById('hamburger-menu').addEventListener('click', function () {
+    const navLinks = document.getElementById('nav-links');
+    navLinks.classList.toggle('active'); // Alternar la clase 'active' para mostrar/ocultar el menú
+});

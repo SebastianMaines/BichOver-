@@ -852,6 +852,14 @@ document.getElementById('hamburger-menu').addEventListener('click', function () 
     navLinks.classList.toggle('active'); // Alternar la clase 'active' para mostrar/ocultar el menú
 });
 
+// Cerrar el menú hamburguesa al seleccionar una opción
+document.querySelectorAll('#nav-links button').forEach(link => {
+    link.addEventListener('click', function () {
+        const navLinks = document.getElementById('nav-links');
+        navLinks.classList.remove('active'); // Cerrar el menú cuando se selecciona una opción
+    });
+});
+
 
 
 

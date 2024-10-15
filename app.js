@@ -880,6 +880,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // Referencia a la base de datos
     const db = firebase.database();
 
+    // Función para formatear números como moneda en Argentina
+    function formatearMoneda(valor) {
+        return valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
+    }
+
     // Función para actualizar el dashboard de resumen basado en los datos visibles en el DOM
     function actualizarResumen() {
         const totalVentas = document.getElementById('total-ventas');
@@ -903,7 +908,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 gastosSum += monto;
             });
         }
-        totalGastos.textContent = `$${gastosSum.toFixed(2)}`;
+        totalGastos.textContent = formatearMoneda(gastosSum);
+
 
         /*** Sumar Ventas desde la tabla de ventas ***/
         let ventasSum = 0;
@@ -915,7 +921,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ventasSum += precioVenta;
             });
         }
-        totalVentas.textContent = `$${ventasSum.toFixed(2)}`;
+        totalVentas.textContent = formatearMoneda(ventasSum);
 
         /*** Contar Clientes Vendidos desde la tabla de clientes ***/
         let clientesCount = 0;

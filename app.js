@@ -850,3 +850,112 @@ document.getElementById('hamburger-menu').addEventListener('click', function () 
     const navLinks = document.getElementById('nav-links');
     navLinks.classList.toggle('active'); // Alternar la clase 'active' para mostrar/ocultar el menú
 });
+
+
+
+
+
+
+
+
+
+// Esperar a que el documento esté completamente cargado
+document.addEventListener('DOMContentLoaded', function () {
+    // Configuración de Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyAOAbpgX2VmylNbP6WRp9CwzLNq_8eVjZI",
+        authDomain: "bichbye--piscinas.firebaseapp.com",
+        databaseURL: "https://bichbye--piscinas-default-rtdb.firebaseio.com",
+        projectId: "bichbye--piscinas",
+        storageBucket: "bichbye--piscinas.appspot.com",
+        messagingSenderId: "753158630879",
+        appId: "1:753158630879:web:28e3a5799381153406286a"
+    };
+
+    // Inicializar Firebase
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+
+    // Referencia a la base de datos
+    const db = firebase.database();
+
+    // Función para actualizar el dashboard de resumen basado en los datos visibles en el DOM
+    function actualizarResumen() {
+        const totalVentas = document.getElementById('total-ventas');
+        const totalGastos = document.getElementById('total-gastos');
+        const clientesVendidos = document.getElementById('total-clientes');
+        const totalStock = document.getElementById('total-stock');
+
+        // Verificar si los elementos necesarios existen
+        if (!totalVentas || !totalGastos || !clientesVendidos || !totalStock) {
+            console.error('No se encontraron los elementos necesarios en el DOM.');
+            return;
+        }
+
+        /*** Sumar Gastos desde las tarjetas ***/
+        let gastosSum = 0;
+        const gastosCards = document.querySelectorAll('.gasto-tarjeta');
+        if (gastosCards.length > 0) {
+            gastosCards.forEach(card => {
+                const montoText = card.querySelector('p:nth-child(3)').innerText;
+                const monto = parseFloat(montoText.replace('$', '').replace('Monto:', '').trim()) || 0;
+                gastosSum += monto;
+            });
+        }
+        totalGastos.textContent = `$${gastosSum.toFixed(2)}`;
+
+        /*** Sumar Ventas desde la tabla de ventas ***/
+        let ventasSum = 0;
+        const ventasRows = document.querySelectorAll('#ventasBody tr');
+        if (ventasRows.length > 0) {
+            ventasRows.forEach(row => {
+                const cells = row.getElementsByTagName('td');
+                const precioVenta = parseFloat(cells[3]?.innerText.replace('$', '')) || 0;
+                ventasSum += precioVenta;
+            });
+        }
+        totalVentas.textContent = `$${ventasSum.toFixed(2)}`;
+
+        /*** Contar Clientes Vendidos desde la tabla de clientes ***/
+        let clientesCount = 0;
+        const clientesRows = document.querySelectorAll('#clientesBody tr');
+        if (clientesRows.length > 0) {
+            clientesRows.forEach(row => {
+                const frascosVendidos = parseInt(row.getElementsByTagName('td')[4]?.innerText) || 0;
+                if (frascosVendidos > 0) {
+                    clientesCount += 1;
+                }
+            });
+        }
+        clientesVendidos.textContent = clientesCount;
+
+        /*** Sumar Stock desde la tabla de stock ***/
+        let stockSum = 0;
+        const stockRows = document.querySelectorAll('#stockBody tr');
+        if (stockRows.length > 0) {
+            stockRows.forEach(row => {
+                const stock = parseInt(row.getElementsByTagName('td')[1]?.innerText) || 0;
+                stockSum += stock;
+            });
+        }
+        totalStock.textContent = stockSum;
+    }
+
+    // Escuchar cambios en Firebase y actualizar el resumen cuando los datos se actualicen
+    db.ref('gastos').on('value', function () {
+        setTimeout(() => actualizarResumen(), 1000); // Retrasar la ejecución para permitir que el DOM se actualice
+    });
+
+    db.ref('ventas').on('value', function () {
+        setTimeout(() => actualizarResumen(), 1000);
+    });
+
+    db.ref('clientes').on('value', function () {
+        setTimeout(() => actualizarResumen(), 1000);
+    });
+
+    db.ref('usuarios').on('value', function () {
+        setTimeout(() => actualizarResumen(), 1000);
+    });
+});

@@ -29,6 +29,9 @@
 
     <!-- Menú de navegación -->
     <nav class="navigation" id="nav-links">
+        <button onclick="showSection('resumen')">
+            <span class="material-icons">dashboard</span> Resumen
+        </button>
         <button onclick="showSection('gastos')">
             <span class="material-icons">attach_money</span> Gastos
         </button>
@@ -54,6 +57,36 @@
 
     <!-- Sección de contenido principal -->
     <main class="container">
+
+        <!-- Sección de Resumen -->
+        <section id="resumen" class="section" style="display:none;">
+            <h2>Resumen General</h2>
+            <div class="dashboard">
+                <div class="dashboard-card">
+                    <h3>Ventas Totales</h3>
+                    <p id="total-ventas">$0</p>
+                </div>
+                <div class="dashboard-card">
+                    <h3>Gastos Totales</h3>
+                    <p id="total-gastos">$0</p>
+                </div>
+                <div class="dashboard-card">
+                    <h3>A cuantos clientes vendimos?</h3>
+                    <p id="total-clientes">0</p>
+                </div>
+                <div class="dashboard-card">
+                    <h3>Stock Total</h3>
+                    <p id="total-stock">0</p>
+                </div>
+            </div>
+        </section>
+
+
+
+
+
+
+
         <!-- Sección de Inicio de Sesión -->
         <section id="login" class="section">
             <h2>Inicio de Sesión</h2>

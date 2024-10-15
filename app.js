@@ -1001,11 +1001,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // Funcionalidad 1: Mostrar cantidad de frascos vendidos al hacer clic en "Ventas Totales"
     ventasTotalesCard.addEventListener('click', function () {
         let frascosVendidos = 0;
-        const ventasRows = document.querySelectorAll('#ventasBody tr');
+        const ventasRows = document.querySelectorAll('#ventasBody tr'); // Asegurarse de seleccionar todas las filas de ventas
         ventasRows.forEach(row => {
             const cells = row.getElementsByTagName('td');
             const cantidadFrascos = parseInt(cells[2]?.innerText) || 0; // Suponiendo que la cantidad de frascos está en la tercera columna
-            frascosVendidos += cantidadFrascos;
+            frascosVendidos += cantidadFrascos; // Sumar todos los frascos vendidos
         });
 
         // Mostrar la cantidad de frascos vendidos dentro de la misma tarjeta
@@ -1013,64 +1013,76 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!frascosInfo) {
             frascosInfo = document.createElement('div');
             frascosInfo.classList.add('info-extra');
-            frascosTotalesText = `<p>${frascosVendidos} frascos vendidos</p>`;
-            frascosInfo.innerHTML = frascosTotalesText;
+            frascosInfo.innerHTML = `<p>${frascosVendidos} frascos vendidos</p>`;
             ventasTotalesCard.appendChild(frascosInfo);
         }
+        frascosInfo.innerHTML = `<p>${frascosVendidos} frascos vendidos</p>`; // Asegurarse de actualizar la cantidad
         toggleVisibility(frascosInfo);
     });
 
-    // Funcionalidad 2: Redirigir a la sección de gastos al hacer clic en "Gastos Totales"
-    gastosTotalesCard.addEventListener('click', function () {
-        document.getElementById('gastos').scrollIntoView({ behavior: 'smooth' });
-    });
+    // Mostrar la cantidad de frascos vendidos dentro de la misma tarjeta
+    let frascosInfo = ventasTotalesCard.querySelector('.info-extra');
+    if (!frascosInfo) {
+        frascosInfo = document.createElement('div');
+        frascosInfo.classList.add('info-extra');
+        frascosTotalesText = `<p>${frascosVendidos} frascos vendidos</p>`;
+        frascosInfo.innerHTML = frascosTotalesText;
+        ventasTotalesCard.appendChild(frascosInfo);
+    }
+    toggleVisibility(frascosInfo);
+});
 
-    // Funcionalidad 3: Mostrar lista de clientes que compraron al hacer clic en "Clientes Vendidos"
-    clientesVendidosCard.addEventListener('click', function () {
-        let clientesList = [];
-        const clientesRows = document.querySelectorAll('#clientesBody tr');
-        clientesRows.forEach(row => {
-            const clienteNombre = row.getElementsByTagName('td')[0]?.innerText; // Suponiendo que el nombre del cliente está en la primera columna
-            const frascosVendidos = parseInt(row.getElementsByTagName('td')[4]?.innerText) || 0;
-            if (frascosVendidos > 0) {
-                clientesList.push(clienteNombre);
-            }
-        });
+// Funcionalidad 2: Redirigir a la sección de gastos al hacer clic en "Gastos Totales"
+gastosTotalesCard.addEventListener('click', function () {
+    document.getElementById('gastos').scrollIntoView({ behavior: 'smooth' });
+});
 
-        // Mostrar la lista de clientes dentro de la misma tarjeta
-        let clientesInfo = clientesVendidosCard.querySelector('.info-extra');
-        if (!clientesInfo) {
-            clientesInfo = document.createElement('div');
-            clientesInfo.classList.add('info-extra');
-            clientesInfo.innerHTML = `<p>Clientes que compraron: ${clientesList.join(', ')}</p>`;
-            clientesVendidosCard.appendChild(clientesInfo);
+// Funcionalidad 3: Mostrar lista de clientes que compraron al hacer clic en "Clientes Vendidos"
+clientesVendidosCard.addEventListener('click', function () {
+    let clientesList = [];
+    const clientesRows = document.querySelectorAll('#clientesBody tr');
+    clientesRows.forEach(row => {
+        const clienteNombre = row.getElementsByTagName('td')[0]?.innerText; // Suponiendo que el nombre del cliente está en la primera columna
+        const frascosVendidos = parseInt(row.getElementsByTagName('td')[4]?.innerText) || 0;
+        if (frascosVendidos > 0) {
+            clientesList.push(clienteNombre);
         }
-        toggleVisibility(clientesInfo);
     });
 
-    // Funcionalidad 4: Mostrar stock de Juan y Seba al hacer clic en "Stock"
-    stockCard.addEventListener('click', function () {
-        let stockJuan = 0;
-        let stockSeba = 0;
-        const stockRows = document.querySelectorAll('#stockBody tr');
-        stockRows.forEach(row => {
-            const nombreUsuario = row.getElementsByTagName('td')[0]?.innerText;
-            const stockUsuario = parseInt(row.getElementsByTagName('td')[1]?.innerText) || 0;
-            if (nombreUsuario === 'Juan') {
-                stockJuan = stockUsuario;
-            } else if (nombreUsuario === 'Seba') {
-                stockSeba = stockUsuario;
-            }
-        });
+    // Mostrar la lista de clientes dentro de la misma tarjeta
+    let clientesInfo = clientesVendidosCard.querySelector('.info-extra');
+    if (!clientesInfo) {
+        clientesInfo = document.createElement('div');
+        clientesInfo.classList.add('info-extra');
+        clientesInfo.innerHTML = `<p>Clientes que compraron: ${clientesList.join(', ')}</p>`;
+        clientesVendidosCard.appendChild(clientesInfo);
+    }
+    toggleVisibility(clientesInfo);
+});
 
-        // Mostrar la información de stock dentro de la misma tarjeta
-        let stockInfo = stockCard.querySelector('.info-extra');
-        if (!stockInfo) {
-            stockInfo = document.createElement('div');
-            stockInfo.classList.add('info-extra');
-            stockInfo.innerHTML = `<p>Stock de Juan: ${stockJuan} frascos</p><p>Stock de Seba: ${stockSeba} frascos</p>`;
-            stockCard.appendChild(stockInfo);
+// Funcionalidad 4: Mostrar stock de Juan y Seba al hacer clic en "Stock"
+stockCard.addEventListener('click', function () {
+    let stockJuan = 0;
+    let stockSeba = 0;
+    const stockRows = document.querySelectorAll('#stockBody tr');
+    stockRows.forEach(row => {
+        const nombreUsuario = row.getElementsByTagName('td')[0]?.innerText;
+        const stockUsuario = parseInt(row.getElementsByTagName('td')[1]?.innerText) || 0;
+        if (nombreUsuario === 'Juan') {
+            stockJuan = stockUsuario;
+        } else if (nombreUsuario === 'Seba') {
+            stockSeba = stockUsuario;
         }
-        toggleVisibility(stockInfo);
     });
+
+    // Mostrar la información de stock dentro de la misma tarjeta
+    let stockInfo = stockCard.querySelector('.info-extra');
+    if (!stockInfo) {
+        stockInfo = document.createElement('div');
+        stockInfo.classList.add('info-extra');
+        stockInfo.innerHTML = `<p>Stock de Juan: ${stockJuan} frascos</p><p>Stock de Seba: ${stockSeba} frascos</p>`;
+        stockCard.appendChild(stockInfo);
+    }
+    toggleVisibility(stockInfo);
+});
 });

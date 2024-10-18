@@ -1085,4 +1085,4 @@ stockCard.addEventListener('click', function () {
     }
     toggleVisibility(stockInfo);
 });
-});
+

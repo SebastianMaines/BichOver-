@@ -550,12 +550,12 @@ function ProspectarZona({ clientes }) {
                       onClick={() => { agregarARuta(selectedRes); setSelectedRes(null) }}>➕ Ruta</button>
                     <button style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                       onClick={() => { setModalVisita(selectedRes); setSelectedRes(null) }}>📝 Visita</button>
-                    {!selectedRes.esCliente && <>
+                    {!selectedRes.esCliente && (
                       <button style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                         onClick={() => { setModalCliente(selectedRes); setSelectedRes(null) }}>💾 Nuevo</button>
-                      <button style={{ background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                        onClick={() => { setModalVincular(selectedRes); setSelectedRes(null) }}>🔗 Vincular</button>
-                    </>}
+                    )}
+                    <button style={{ background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                      onClick={() => { setModalVincular(selectedRes); setSelectedRes(null) }}>🔗 Vincular</button>
                   </div>
                 </div>
               </InfoWindow>
@@ -635,12 +635,10 @@ function ProspectarZona({ clientes }) {
                       💾 Nuevo
                     </button>
                   )}
-                  {!r.esCliente && (
-                    <button className="btn btn-sm" style={{ background: '#f3f0ff', color: 'var(--purple)', border: '1px solid var(--purple)', fontWeight: 700 }}
-                      onClick={() => setModalVincular(r)}>
-                      🔗 Vincular
-                    </button>
-                  )}
+                  <button className="btn btn-sm" style={{ background: '#f3f0ff', color: 'var(--purple)', border: '1px solid var(--purple)', fontWeight: 700 }}
+                    onClick={() => setModalVincular(r)}>
+                    🔗 Vincular
+                  </button>
                 </div>
               </div>
             )

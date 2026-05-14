@@ -394,6 +394,7 @@ function ProspectarZona({ clientes }) {
   const [rutaGuardadaMsg, setRutaGuardadaMsg] = useState('')
   const [prospectos, setProspectos]     = useState({})
   const [modalVisita, setModalVisita]   = useState(null)
+  const [filtroPin, setFiltroPin]       = useState('todos')
   const debounceRef = useRef(null)
   const dropRef     = useRef(null)
 
@@ -563,6 +564,23 @@ function ProspectarZona({ clientes }) {
     ? { lat: resultados[0].location.latitude, lng: resultados[0].location.longitude }
     : ROSARIO
 
+  const FILTROS_PIN = [
+    { value: 'todos',       label: 'Todos',          color: '#64748b', bg: 'var(--bg)' },
+    { value: 'clientes',    label: '🟢 Clientes',    color: '#10b981', bg: '#ecfdf5' },
+    { value: 'visitados',   label: '🔴 Visitados',   color: '#ef4444', bg: '#fef2f2' },
+    { value: 'sin_visitar', label: '⚪ Sin visitar', color: '#94a3b8', bg: '#f8fafc' },
+  ]
+
+  function matchFiltro(r) {
+    if (filtroPin === 'todos')       return true
+    if (filtroPin === 'clientes')    return r.esCliente
+    if (filtroPin === 'visitados')   return !r.esCliente && !!prospectos[r.id]
+    if (filtroPin === 'sin_visitar') return !r.esCliente && !prospectos[r.id]
+    return true
+  }
+
+  const resultadosFiltrados = resultados.filter(matchFiltro)
+
   return (
     <div>
       {/* Panel de búsqueda */}
@@ -639,7 +657,7 @@ function ProspectarZona({ clientes }) {
       <div style={{ borderRadius: 14, overflow: 'hidden', height: 400, border: '1px solid var(--border)', marginBottom: 16 }}>
         {MAPS_KEY ? (
           <Map defaultCenter={centroMapa} defaultZoom={12} mapId="bichover-prospectar" key={lugarSelec?.nombre || ''}>
-            {resultados.map((r, i) => {
+            {resultadosFiltrados.map((r, i) => {
               if (!r.location) return null
               const cfg      = TIER_CONFIG[r.tier]
               const enRuta   = ruta.find(p => p.id === r.id)
@@ -728,10 +746,27 @@ function ProspectarZona({ clientes }) {
       {/* Resultados */}
       {resultados.length > 0 && (
         <div className="card mb-16">
-          <div className="fw-800 mb-12" style={{ fontSize: 15 }}>
-            {resultados.length} negocios encontrados
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <div className="fw-800" style={{ fontSize: 15 }}>
+              {resultadosFiltrados.length} <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 13 }}>de {resultados.length} negocios</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {FILTROS_PIN.map(f => (
+                <button key={f.value}
+                  onClick={() => setFiltroPin(f.value)}
+                  style={{
+                    padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    border: `1.5px solid ${filtroPin === f.value ? f.color : 'var(--border)'}`,
+                    background: filtroPin === f.value ? f.bg : 'var(--white)',
+                    color: filtroPin === f.value ? f.color : 'var(--muted)',
+                    transition: 'all .15s',
+                  }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
-          {resultados.map(r => {
+          {resultadosFiltrados.map(r => {
             const cfg       = TIER_CONFIG[r.tier]
             const enRuta    = !!ruta.find(p => p.id === r.id)
             const prospecto = prospectos[r.id]

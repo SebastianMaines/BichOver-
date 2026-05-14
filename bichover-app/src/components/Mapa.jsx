@@ -297,13 +297,26 @@ function ProspectarZona({ clientes }) {
     const nombre = pred.structuredFormat?.mainText?.text || pred.text?.text || ''
     setAcInput(nombre)
     try {
-      const res = await fetch(`https://places.googleapis.com/v1/${pred.placeId}?fields=location,types`, {
-        headers: { 'X-Goog-Api-Key': MAPS_KEY },
+      const resourceName = pred.place || `places/${pred.placeId}`
+      const res = await fetch(`https://places.googleapis.com/v1/${resourceName}`, {
+        headers: { 'X-Goog-Api-Key': MAPS_KEY, 'X-Goog-FieldMask': 'location,types' },
       })
       const data = await res.json()
       const tipos = data.types || []
       const esBarrio = tipos.some(t => ['neighborhood', 'sublocality', 'sublocality_level_1', 'sublocality_level_2'].includes(t))
-      setLugarSelec({ nombre, lat: data.location?.latitude, lng: data.location?.longitude, radio: esBarrio ? 2500 : 15000 })
+      const lat = data.location?.latitude
+      const lng = data.location?.longitude
+      if (lat && lng) {
+        setLugarSelec({ nombre, lat, lng, radio: esBarrio ? 2500 : 15000 })
+      } else {
+        // fallback: geocode the name
+        const geoRes  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(nombre + ', Argentina')}&key=${MAPS_KEY}`)
+        const geoData = await geoRes.json()
+        if (geoData.results?.length > 0) {
+          const loc = geoData.results[0].geometry.location
+          setLugarSelec({ nombre, lat: loc.lat, lng: loc.lng, radio: 5000 })
+        }
+      }
     } catch { /* ignore */ }
   }
 

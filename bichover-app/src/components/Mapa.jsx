@@ -560,9 +560,10 @@ function ProspectarZona({ clientes }) {
   const tieneRuta = ruta.length > 0
   const ROSARIO   = { lat: -32.9468, lng: -60.6393 }
 
-  const centroMapa = resultados.length > 0 && resultados[0].location
-    ? { lat: resultados[0].location.latitude, lng: resultados[0].location.longitude }
+  const centroMapa = lugarSelec?.lat
+    ? { lat: lugarSelec.lat, lng: lugarSelec.lng }
     : ROSARIO
+  const zoomMapa = lugarSelec?.radio ? (lugarSelec.radio <= 5000 ? 14 : 12) : 11
 
   const FILTROS_PIN = [
     { value: 'todos',       label: 'Todos',          color: '#64748b', bg: 'var(--bg)' },
@@ -656,7 +657,7 @@ function ProspectarZona({ clientes }) {
       {/* Mapa de resultados */}
       <div style={{ borderRadius: 14, overflow: 'hidden', height: 400, border: '1px solid var(--border)', marginBottom: 16 }}>
         {MAPS_KEY ? (
-          <Map defaultCenter={centroMapa} defaultZoom={12} mapId="bichover-prospectar" key={lugarSelec?.nombre || ''}>
+          <Map defaultCenter={centroMapa} defaultZoom={zoomMapa} mapId="bichover-prospectar" key={lugarSelec?.nombre || ''}>
             {resultadosFiltrados.map((r, i) => {
               if (!r.location) return null
               const cfg      = TIER_CONFIG[r.tier]

@@ -1195,12 +1195,24 @@ function VincularClienteModal({ negocio, clientes, onClose }) {
 
 // ── Rutas Guardadas ───────────────────────────────────────────────────────────
 function RutasGuardadas() {
-  const [rutas, setRutas]       = useState({})
-  const [confirm, setConfirm]   = useState(null)
+  const [rutas, setRutas]         = useState({})
+  const [confirm, setConfirm]     = useState(null)
+  const [modoRutaData, setModoRutaData] = useState(null) // { nombre, paradas }
+  const [modoIdx, setModoIdx]     = useState(0)
 
   useEffect(() => {
     return onValue(ref(db, 'rutas'), s => setRutas(s.exists() ? s.val() : {}))
   }, [])
+
+  // Wake Lock for route mode
+  useEffect(() => {
+    if (!modoRutaData) return
+    let wl = null
+    if ('wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').then(l => { wl = l }).catch(() => {})
+    }
+    return () => { if (wl) wl.release() }
+  }, [!!modoRutaData])
 
   async function eliminar(id) {
     await remove(ref(db, `rutas/${id}`))
@@ -1212,9 +1224,84 @@ function RutasGuardadas() {
     window.open(`https://www.google.com/maps/dir/${stops.join('/')}`, '_blank')
   }
 
+  function entrarModoRuta(r) {
+    setModoIdx(0)
+    setModoRutaData({ nombre: r.nombre, paradas: r.paradas || [] })
+  }
+
   const lista = Object.entries(rutas)
     .map(([id, r]) => ({ id, ...r }))
     .sort((a, b) => b.timestamp - a.timestamp)
+
+  // ── Modo Ruta overlay ──
+  if (modoRutaData) {
+    const paradas = modoRutaData.paradas
+    const p = paradas[modoIdx]
+    const nombre = p?.displayName?.text || p?.nombre || ''
+    const lat = p?.location?.latitude
+    const lng = p?.location?.longitude
+    const tel = p?.nationalPhoneNumber
+    const addr = p?.formattedAddress
+    const wa  = waUrl(tel)
+    const dir = mapsDir(lat, lng, addr)
+    const cfg = TIER_CONFIG[p?.tier] || TIER_CONFIG[1]
+
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: '#0b1f3a', display: 'flex', flexDirection: 'column', fontFamily: 'Outfit, sans-serif' }}>
+        {/* Top bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
+          <div style={{ color: 'rgba(255,255,255,.6)', fontSize: 14, fontWeight: 700 }}>
+            🚗 {modoRutaData.nombre} · {modoIdx + 1}/{paradas.length}
+          </div>
+          <button onClick={() => setModoRutaData(null)}
+            style={{ background: 'rgba(255,255,255,.12)', border: 'none', color: '#fff', borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 700 }}>
+            ✕ Salir
+          </button>
+        </div>
+
+        {/* Parada info */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', textAlign: 'center' }}>
+          <div style={{ background: cfg.color + '22', border: `1px solid ${cfg.color}44`, borderRadius: 10, padding: '4px 12px', marginBottom: 16, fontSize: 12, fontWeight: 700, color: cfg.color }}>
+            {cfg.label}
+          </div>
+          <div style={{ color: '#fff', fontSize: 34, fontWeight: 900, lineHeight: 1.2, marginBottom: 10 }}>
+            {nombre}
+          </div>
+          {addr && (
+            <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 13, marginBottom: 28 }}>
+              📍 {addr}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {wa && (
+              <a href={wa} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#25d366', color: '#fff', borderRadius: 14, padding: '14px 24px', fontSize: 18, fontWeight: 800, textDecoration: 'none' }}>
+                💬 WhatsApp
+              </a>
+            )}
+            {dir && (
+              <a href={dir} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#4285f4', color: '#fff', borderRadius: 14, padding: '14px 24px', fontSize: 18, fontWeight: 800, textDecoration: 'none' }}>
+                🗺 Cómo llegar
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <div style={{ display: 'flex', gap: 12, padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,.1)' }}>
+          <button onClick={() => setModoIdx(i => Math.max(0, i - 1))} disabled={modoIdx === 0}
+            style={{ flex: 1, background: 'rgba(255,255,255,.1)', border: 'none', color: modoIdx === 0 ? 'rgba(255,255,255,.25)' : '#fff', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 700 }}>
+            ← Anterior
+          </button>
+          <button onClick={() => setModoIdx(i => Math.min(paradas.length - 1, i + 1))} disabled={modoIdx === paradas.length - 1}
+            style={{ flex: 1, background: 'rgba(255,255,255,.1)', border: 'none', color: modoIdx === paradas.length - 1 ? 'rgba(255,255,255,.25)' : '#fff', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 700 }}>
+            Siguiente →
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (lista.length === 0) {
     return (
@@ -1237,7 +1324,10 @@ function RutasGuardadas() {
                 {Array.isArray(r.paradas) ? r.paradas.length : 0} paradas · {r.fechaGuardado || ''}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button className="btn btn-amber btn-sm" onClick={() => entrarModoRuta(r)}>
+                🚗 Modo en Ruta
+              </button>
               <button className="btn btn-primary btn-sm" onClick={() => abrirEnMaps(r.paradas || [])}>
                 📱 Abrir en Maps
               </button>

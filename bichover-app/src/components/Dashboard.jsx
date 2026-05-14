@@ -264,7 +264,7 @@ export default function Dashboard({ usuario, onNavTo }) {
 
   const paraLlamar = Object.entries(clientes)
     .map(([id, c]) => ({ id, ...c, diasSinComprar: diasDesdeStr(c.fechaUltimaCompra) }))
-    .filter(c => c.diasSinComprar != null && c.diasSinComprar >= 30 && !dismissedHoy.includes(c.id))
+    .filter(c => c.diasSinComprar != null && c.diasSinComprar >= 10 && !dismissedHoy.includes(c.id))
     .sort((a, b) => b.diasSinComprar - a.diasSinComprar)
     .slice(0, 8)
 

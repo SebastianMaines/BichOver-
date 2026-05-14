@@ -4,6 +4,21 @@ import { db } from '../firebase.js'
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
+function waUrl(tel) {
+  if (!tel) return null
+  const d = tel.replace(/\D/g, '')
+  if (!d) return null
+  const num = d.startsWith('54') ? d : d.startsWith('0') ? '54' + d.slice(1) : '54' + d
+  return `https://wa.me/${num}`
+}
+
+function mapsUrlCliente(c) {
+  if (c.lat && c.lng) return `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`
+  if (c.direccion)    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.direccion + ', Argentina')}`
+  if (c.localidad)    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.localidad + ', Argentina')}`
+  return null
+}
+
 function TierBadge({ tier }) {
   const map = {
     1: { cls: 'tier-1', label: '🏊 Exc. Piscinas' },
@@ -252,6 +267,22 @@ export default function Clientes({ usuario }) {
                   <div style={{ fontSize: 11, color: 'var(--light)' }}>última compra</div>
                 </div>
               </div>
+              {(waUrl(c.telefono) || mapsUrlCliente(c)) && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  {waUrl(c.telefono) && (
+                    <a href={waUrl(c.telefono)} target="_blank" rel="noopener noreferrer"
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#25d366', color: '#fff', borderRadius: 8, padding: '7px 0', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                      💬 WhatsApp
+                    </a>
+                  )}
+                  {mapsUrlCliente(c) && (
+                    <a href={mapsUrlCliente(c)} target="_blank" rel="noopener noreferrer"
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#4285f4', color: '#fff', borderRadius: 8, padding: '7px 0', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                      🗺 Cómo llegar
+                    </a>
+                  )}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => openEdit(c.id, c)}>✏️ Editar</button>
                 <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => handleEliminar(c.id)}>🗑 Eliminar</button>

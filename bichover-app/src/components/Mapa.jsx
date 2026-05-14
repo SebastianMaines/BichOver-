@@ -207,9 +207,9 @@ const QUERIES_POR_TIER = {
     'casa de limpieza {loc} Argentina',
   ],
   3: [
-    'distribuidora {loc} Argentina',
-    'mayorista {loc} Argentina',
-    'distribuidor productos {loc} Argentina',
+    'mayorista artículos de piscina cloro {loc} Argentina',
+    'distribuidora productos de limpieza {loc} Argentina',
+    'mayorista forraje alimento animal {loc} Argentina',
   ],
 }
 
@@ -240,11 +240,14 @@ function RoutePolyline({ paradas }) {
 }
 
 function ProspectarZona({ clientes }) {
-  const [localidad, setLocalidad]   = useState('')
-  const [tiersAct, setTiersAct]     = useState([1, 2, 3])
-  const [resultados, setResultados] = useState([])
-  const [buscando, setBuscando]     = useState(false)
-  const [error, setError]           = useState('')
+  const [acInput, setAcInput]         = useState('')
+  const [lugarSelec, setLugarSelec]   = useState(null)
+  const [sugerencias, setSugerencias] = useState([])
+  const [mostrarDrop, setMostrarDrop] = useState(false)
+  const [tiersAct, setTiersAct]       = useState([1, 2, 3])
+  const [resultados, setResultados]   = useState([])
+  const [buscando, setBuscando]       = useState(false)
+  const [error, setError]             = useState('')
   const [ruta, setRuta]               = useState([])
   const [selectedRes, setSelectedRes]   = useState(null)
   const [modalCliente, setModalCliente] = useState(null)
@@ -252,6 +255,57 @@ function ProspectarZona({ clientes }) {
   const [nombreRuta, setNombreRuta]   = useState('')
   const [guardandoRuta, setGuardandoRuta] = useState(false)
   const [rutaGuardadaMsg, setRutaGuardadaMsg] = useState('')
+  const debounceRef = useRef(null)
+  const dropRef     = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropRef.current && !dropRef.current.contains(e.target)) setMostrarDrop(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  async function handleAcChange(e) {
+    const val = e.target.value
+    setAcInput(val)
+    setLugarSelec(null)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (val.length < 2) { setSugerencias([]); setMostrarDrop(false); return }
+    debounceRef.current = setTimeout(async () => {
+      if (!MAPS_KEY) return
+      try {
+        const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': MAPS_KEY },
+          body: JSON.stringify({
+            input: val,
+            includedRegionCodes: ['ar'],
+            includedPrimaryTypes: ['locality', 'sublocality', 'neighborhood', 'administrative_area_level_2', 'administrative_area_level_3'],
+          }),
+        })
+        const data = await res.json()
+        const preds = (data.suggestions || []).map(s => s.placePrediction).filter(Boolean)
+        setSugerencias(preds)
+        setMostrarDrop(preds.length > 0)
+      } catch { /* ignore */ }
+    }, 300)
+  }
+
+  async function seleccionarLugar(pred) {
+    setMostrarDrop(false)
+    const nombre = pred.structuredFormat?.mainText?.text || pred.text?.text || ''
+    setAcInput(nombre)
+    try {
+      const res = await fetch(`https://places.googleapis.com/v1/${pred.placeId}?fields=location,types`, {
+        headers: { 'X-Goog-Api-Key': MAPS_KEY },
+      })
+      const data = await res.json()
+      const tipos = data.types || []
+      const esBarrio = tipos.some(t => ['neighborhood', 'sublocality', 'sublocality_level_1', 'sublocality_level_2'].includes(t))
+      setLugarSelec({ nombre, lat: data.location?.latitude, lng: data.location?.longitude, radio: esBarrio ? 2500 : 15000 })
+    } catch { /* ignore */ }
+  }
 
   function toggleTierAct(t) {
     setTiersAct(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])
@@ -259,22 +313,15 @@ function ProspectarZona({ clientes }) {
 
   async function buscar(e) {
     e.preventDefault()
-    if (!localidad.trim()) return
+    if (!lugarSelec?.lat) { setError('Seleccioná una zona del listado de sugerencias'); return }
     if (!MAPS_KEY) { setError('Configurá la VITE_GOOGLE_MAPS_API_KEY'); return }
     setBuscando(true)
     setResultados([])
     setError('')
 
-    // Geocodificar la localidad primero para restringir búsqueda a Argentina
-    let locationBias = null
-    try {
-      const geoRes  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(localidad + ', Argentina')}&key=${MAPS_KEY}`)
-      const geoData = await geoRes.json()
-      if (geoData.results?.length > 0) {
-        const loc = geoData.results[0].geometry.location
-        locationBias = { circle: { center: { latitude: loc.lat, longitude: loc.lng }, radius: 30000 } }
-      }
-    } catch { /* continuar sin bias */ }
+    const locationRestriction = {
+      circle: { center: { latitude: lugarSelec.lat, longitude: lugarSelec.lng }, radius: lugarSelec.radio },
+    }
 
     const seen = new Set()
     const resultadosTodos = []
@@ -282,10 +329,8 @@ function ProspectarZona({ clientes }) {
 
     for (const tier of tiersAct) {
       for (const queryTpl of QUERIES_POR_TIER[tier]) {
-        const query = queryTpl.replace('{loc}', localidad) + ' Argentina'
+        const query = queryTpl.replace('{loc}', lugarSelec.nombre)
         try {
-          const body = { textQuery: query }
-          if (locationBias) body.locationBias = locationBias
           const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
             method: 'POST',
             headers: {
@@ -293,7 +338,7 @@ function ProspectarZona({ clientes }) {
               'X-Goog-Api-Key': MAPS_KEY,
               'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.nationalPhoneNumber,places.businessStatus',
             },
-            body: JSON.stringify(body),
+            body: JSON.stringify({ textQuery: query, locationRestriction }),
           })
           const data = await res.json()
           const places = data.places || []
@@ -310,7 +355,7 @@ function ProspectarZona({ clientes }) {
     }
 
     if (resultadosTodos.length === 0) {
-      setError(`No encontramos negocios de esos tipos en ${localidad}. Probá con el nombre del municipio principal de la zona.`)
+      setError(`No encontramos negocios de esos tipos en ${lugarSelec.nombre}. Probá con otra zona o municipio cercano.`)
     }
     setResultados(resultadosTodos)
     setBuscando(false)
@@ -357,9 +402,47 @@ function ProspectarZona({ clientes }) {
         <h3 className="fw-800 mb-12" style={{ fontSize: 16 }}>🔍 Buscar negocios potenciales</h3>
         <form onSubmit={buscar}>
           <div className="form-group">
-            <label className="form-label">Localidad o ciudad</label>
-            <input className="form-input" placeholder="Ej: Rosario, Villa Gobernador Gálvez..."
-              value={localidad} onChange={e => setLocalidad(e.target.value)} required />
+            <label className="form-label">Localidad o barrio</label>
+            <div style={{ position: 'relative' }} ref={dropRef}>
+              {lugarSelec ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#e8f1ff', border: '1.5px solid var(--blue)', borderRadius: 8, padding: '8px 12px' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--blue)', flex: 1 }}>📍 {lugarSelec.nombre}</span>
+                  <button type="button"
+                    onClick={() => { setLugarSelec(null); setAcInput(''); setSugerencias([]) }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--blue)', fontWeight: 900, fontSize: 16, padding: '0 2px', lineHeight: 1 }}>
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <input className="form-input"
+                  placeholder="Ej: Fisherton, Villa Gobernador Gálvez..."
+                  value={acInput}
+                  onChange={handleAcChange}
+                  onFocus={() => sugerencias.length > 0 && setMostrarDrop(true)}
+                  autoComplete="off"
+                />
+              )}
+              {mostrarDrop && sugerencias.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+                  background: '#fff', border: '1px solid var(--border)', borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0,0,0,.14)', marginTop: 2, maxHeight: 240, overflowY: 'auto',
+                }}>
+                  {sugerencias.map(s => (
+                    <div key={s.placeId}
+                      onMouseDown={() => seleccionarLugar(s)}
+                      style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                        {s.structuredFormat?.mainText?.text || s.text?.text}
+                      </div>
+                      {s.structuredFormat?.secondaryText?.text && (
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.structuredFormat.secondaryText.text}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ marginBottom: 14 }}>
             <div className="form-label" style={{ marginBottom: 8 }}>Tipos de negocio</div>
@@ -367,7 +450,7 @@ function ProspectarZona({ clientes }) {
               {[
                 { tier: 1, label: '🏊 Exclusivo Piscinas / Cloro' },
                 { tier: 2, label: '🔧 Ferreterías / Limpieza' },
-                { tier: 3, label: '📦 Distribuidores / Mayoristas' },
+                { tier: 3, label: '📦 Distribuidores / Mayoristas (piscina, cloro, limpieza, forraje)' },
               ].map(({ tier, label }) => (
                 <label key={tier} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
                   <input type="checkbox" checked={tiersAct.includes(tier)}
@@ -378,7 +461,7 @@ function ProspectarZona({ clientes }) {
               ))}
             </div>
           </div>
-          <button className="btn btn-primary" type="submit" disabled={buscando}>
+          <button className="btn btn-primary" type="submit" disabled={buscando || !lugarSelec}>
             {buscando ? '⏳ Buscando...' : '🔍 Buscar negocios'}
           </button>
         </form>
@@ -387,7 +470,7 @@ function ProspectarZona({ clientes }) {
       {/* Mapa de resultados */}
       <div style={{ borderRadius: 14, overflow: 'hidden', height: 400, border: '1px solid var(--border)', marginBottom: 16 }}>
         {MAPS_KEY ? (
-          <Map defaultCenter={centroMapa} defaultZoom={12} mapId="bichover-prospectar" key={localidad}>
+          <Map defaultCenter={centroMapa} defaultZoom={12} mapId="bichover-prospectar" key={lugarSelec?.nombre || ''}>
             {resultados.map((r, i) => {
               if (!r.location) return null
               const cfg   = TIER_CONFIG[r.tier]

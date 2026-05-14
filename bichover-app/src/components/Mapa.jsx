@@ -394,6 +394,7 @@ function ProspectarZona({ clientes }) {
   const [rutaGuardadaMsg, setRutaGuardadaMsg] = useState('')
   const [prospectos, setProspectos]     = useState({})
   const [modalVisita, setModalVisita]   = useState(null)
+  const [filtroPin, setFiltroPin]       = useState('todos')
   const debounceRef = useRef(null)
   const dropRef     = useRef(null)
 
@@ -563,6 +564,23 @@ function ProspectarZona({ clientes }) {
     ? { lat: resultados[0].location.latitude, lng: resultados[0].location.longitude }
     : ROSARIO
 
+  const FILTROS_PIN = [
+    { value: 'todos',       label: 'Todos',          color: '#64748b', bg: 'var(--bg)' },
+    { value: 'clientes',    label: '🟢 Clientes',    color: '#10b981', bg: '#ecfdf5' },
+    { value: 'visitados',   label: '🔴 Visitados',   color: '#ef4444', bg: '#fef2f2' },
+    { value: 'sin_visitar', label: '⚪ Sin visitar', color: '#94a3b8', bg: '#f8fafc' },
+  ]
+
+  function matchFiltro(r) {
+    if (filtroPin === 'todos')       return true
+    if (filtroPin === 'clientes')    return r.esCliente
+    if (filtroPin === 'visitados')   return !r.esCliente && !!prospectos[r.id]
+    if (filtroPin === 'sin_visitar') return !r.esCliente && !prospectos[r.id]
+    return true
+  }
+
+  const resultadosFiltrados = resultados.filter(matchFiltro)
+
   return (
     <div>
       {/* Panel de búsqueda */}
@@ -639,7 +657,7 @@ function ProspectarZona({ clientes }) {
       <div style={{ borderRadius: 14, overflow: 'hidden', height: 400, border: '1px solid var(--border)', marginBottom: 16 }}>
         {MAPS_KEY ? (
           <Map defaultCenter={centroMapa} defaultZoom={12} mapId="bichover-prospectar" key={lugarSelec?.nombre || ''}>
-            {resultados.map((r, i) => {
+            {resultadosFiltrados.map((r, i) => {
               if (!r.location) return null
               const cfg      = TIER_CONFIG[r.tier]
               const enRuta   = ruta.find(p => p.id === r.id)
@@ -728,10 +746,27 @@ function ProspectarZona({ clientes }) {
       {/* Resultados */}
       {resultados.length > 0 && (
         <div className="card mb-16">
-          <div className="fw-800 mb-12" style={{ fontSize: 15 }}>
-            {resultados.length} negocios encontrados
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <div className="fw-800" style={{ fontSize: 15 }}>
+              {resultadosFiltrados.length} <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 13 }}>de {resultados.length} negocios</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {FILTROS_PIN.map(f => (
+                <button key={f.value}
+                  onClick={() => setFiltroPin(f.value)}
+                  style={{
+                    padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    border: `1.5px solid ${filtroPin === f.value ? f.color : 'var(--border)'}`,
+                    background: filtroPin === f.value ? f.bg : 'var(--white)',
+                    color: filtroPin === f.value ? f.color : 'var(--muted)',
+                    transition: 'all .15s',
+                  }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
-          {resultados.map(r => {
+          {resultadosFiltrados.map(r => {
             const cfg       = TIER_CONFIG[r.tier]
             const enRuta    = !!ruta.find(p => p.id === r.id)
             const prospecto = prospectos[r.id]
@@ -1044,7 +1079,10 @@ function GuardarClienteModal({ negocio, onClose }) {
 
 function VincularClienteModal({ negocio, clientes, onClose }) {
   const [clienteSelec, setClienteSelec] = useState('')
+  const [actualizarNombre, setActualizarNombre] = useState(true)
   const [loading, setLoading] = useState(false)
+
+  const nombreGoogle = negocio.displayName?.text || ''
 
   const lista = Object.entries(clientes)
     .map(([id, c]) => ({ id, ...c }))
@@ -1056,8 +1094,9 @@ function VincularClienteModal({ negocio, clientes, onClose }) {
     setLoading(true)
     try {
       const datos = {}
-      if (negocio.formattedAddress)   datos.direccion = negocio.formattedAddress
-      if (negocio.nationalPhoneNumber) datos.telefono  = negocio.nationalPhoneNumber
+      if (actualizarNombre && nombreGoogle) datos.razonSocial = nombreGoogle
+      if (negocio.formattedAddress)         datos.direccion   = negocio.formattedAddress
+      if (negocio.nationalPhoneNumber)      datos.telefono    = negocio.nationalPhoneNumber
       if (negocio.location) {
         datos.lat = negocio.location.latitude
         datos.lng = negocio.location.longitude
@@ -1072,7 +1111,7 @@ function VincularClienteModal({ negocio, clientes, onClose }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-title">🔗 Vincular con cliente existente</div>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-          Se van a completar los datos de dirección, teléfono y ubicación GPS del cliente seleccionado con la info de <strong>{negocio.displayName?.text}</strong>.
+          Actualizá los datos del cliente con la info de <strong>{nombreGoogle}</strong>.
         </p>
         <form onSubmit={vincular}>
           <div className="form-group">
@@ -1085,8 +1124,16 @@ function VincularClienteModal({ negocio, clientes, onClose }) {
               ))}
             </select>
           </div>
-          <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--muted)' }}>
-            <div><strong>Se actualizará:</strong></div>
+          <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--muted)', lineHeight: 1.8 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Se actualizará:</div>
+            {nombreGoogle && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={actualizarNombre}
+                  onChange={e => setActualizarNombre(e.target.checked)}
+                  style={{ accentColor: 'var(--blue)', width: 15, height: 15 }} />
+                <span>✏️ Nombre: <strong>{nombreGoogle}</strong></span>
+              </label>
+            )}
             {negocio.formattedAddress    && <div>📍 Dirección: {negocio.formattedAddress}</div>}
             {negocio.nationalPhoneNumber && <div>📞 Teléfono: {negocio.nationalPhoneNumber}</div>}
             {negocio.location            && <div>🗺 Coordenadas GPS: sí</div>}

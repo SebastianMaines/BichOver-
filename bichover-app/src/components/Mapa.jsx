@@ -246,8 +246,9 @@ function ProspectarZona({ clientes }) {
   const [buscando, setBuscando]     = useState(false)
   const [error, setError]           = useState('')
   const [ruta, setRuta]             = useState([])
-  const [selectedRes, setSelectedRes] = useState(null)
+  const [selectedRes, setSelectedRes]   = useState(null)
   const [modalCliente, setModalCliente] = useState(null)
+  const [modalVincular, setModalVincular] = useState(null)
 
   function toggleTierAct(t) {
     setTiersAct(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])
@@ -261,15 +262,27 @@ function ProspectarZona({ clientes }) {
     setResultados([])
     setError('')
 
+    // Geocodificar la localidad primero para restringir búsqueda a Argentina
+    let locationBias = null
+    try {
+      const geoRes  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(localidad + ', Argentina')}&key=${MAPS_KEY}`)
+      const geoData = await geoRes.json()
+      if (geoData.results?.length > 0) {
+        const loc = geoData.results[0].geometry.location
+        locationBias = { circle: { center: { latitude: loc.lat, longitude: loc.lng }, radius: 30000 } }
+      }
+    } catch { /* continuar sin bias */ }
+
     const seen = new Set()
     const resultadosTodos = []
-
     const nombresClientes = Object.values(clientes).map(c => c.razonSocial?.toLowerCase())
 
     for (const tier of tiersAct) {
       for (const queryTpl of QUERIES_POR_TIER[tier]) {
-        const query = queryTpl.replace('{loc}', localidad)
+        const query = queryTpl.replace('{loc}', localidad) + ' Argentina'
         try {
+          const body = { textQuery: query }
+          if (locationBias) body.locationBias = locationBias
           const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
             method: 'POST',
             headers: {
@@ -277,7 +290,7 @@ function ProspectarZona({ clientes }) {
               'X-Goog-Api-Key': MAPS_KEY,
               'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.nationalPhoneNumber,places.businessStatus',
             },
-            body: JSON.stringify({ textQuery: query }),
+            body: JSON.stringify(body),
           })
           const data = await res.json()
           const places = data.places || []
@@ -408,19 +421,13 @@ function ProspectarZona({ clientes }) {
                   {selectedRes.nationalPhoneNumber && (
                     <div style={{ fontSize: 12, color: '#64748b' }}>📞 {selectedRes.nationalPhoneNumber}</div>
                   )}
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    <button style={{
-                      background: 'var(--blue)', color: '#fff', border: 'none',
-                      borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    }} onClick={() => { agregarARuta(selectedRes); setSelectedRes(null) }}>
-                      ➕ Agregar a ruta
-                    </button>
-                    <button style={{
-                      background: 'var(--green)', color: '#fff', border: 'none',
-                      borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    }} onClick={() => { setModalCliente(selectedRes); setSelectedRes(null) }}>
-                      💾 Guardar
-                    </button>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                    <button style={{ background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                      onClick={() => { agregarARuta(selectedRes); setSelectedRes(null) }}>➕ Ruta</button>
+                    <button style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                      onClick={() => { setModalCliente(selectedRes); setSelectedRes(null) }}>💾 Nuevo cliente</button>
+                    <button style={{ background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                      onClick={() => { setModalVincular(selectedRes); setSelectedRes(null) }}>🔗 Vincular existente</button>
                   </div>
                 </div>
               </InfoWindow>
@@ -475,7 +482,11 @@ function ProspectarZona({ clientes }) {
                   </button>
                   <button className="btn btn-success btn-sm"
                     onClick={() => setModalCliente(r)}>
-                    💾 Guardar
+                    💾 Nuevo
+                  </button>
+                  <button className="btn btn-sm" style={{ background: '#f3f0ff', color: 'var(--purple)', border: '1px solid var(--purple)', fontWeight: 700 }}
+                    onClick={() => setModalVincular(r)}>
+                    🔗 Vincular
                   </button>
                 </div>
               </div>
@@ -542,10 +553,10 @@ function ProspectarZona({ clientes }) {
 
       {/* Modal guardar como cliente */}
       {modalCliente && (
-        <GuardarClienteModal
-          negocio={modalCliente}
-          onClose={() => setModalCliente(null)}
-        />
+        <GuardarClienteModal negocio={modalCliente} onClose={() => setModalCliente(null)} />
+      )}
+      {modalVincular && (
+        <VincularClienteModal negocio={modalVincular} clientes={clientes} onClose={() => setModalVincular(null)} />
       )}
     </div>
   )
@@ -624,6 +635,67 @@ function GuardarClienteModal({ negocio, onClose }) {
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn btn-primary" type="submit" disabled={loading}>
               {loading ? 'Guardando...' : '💾 Guardar'}
+            </button>
+            <button className="btn btn-ghost" type="button" onClick={onClose}>Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function VincularClienteModal({ negocio, clientes, onClose }) {
+  const [clienteSelec, setClienteSelec] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const lista = Object.entries(clientes)
+    .map(([id, c]) => ({ id, ...c }))
+    .sort((a, b) => a.razonSocial?.localeCompare(b.razonSocial))
+
+  async function vincular(e) {
+    e.preventDefault()
+    if (!clienteSelec) return
+    setLoading(true)
+    try {
+      const datos = {}
+      if (negocio.formattedAddress)   datos.direccion = negocio.formattedAddress
+      if (negocio.nationalPhoneNumber) datos.telefono  = negocio.nationalPhoneNumber
+      if (negocio.location) {
+        datos.lat = negocio.location.latitude
+        datos.lng = negocio.location.longitude
+      }
+      await update(ref(db, `clientes/${clienteSelec}`), datos)
+      onClose()
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">🔗 Vincular con cliente existente</div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+          Se van a completar los datos de dirección, teléfono y ubicación GPS del cliente seleccionado con la info de <strong>{negocio.displayName?.text}</strong>.
+        </p>
+        <form onSubmit={vincular}>
+          <div className="form-group">
+            <label className="form-label">Seleccionar cliente a actualizar</label>
+            <select className="form-select" value={clienteSelec}
+              onChange={e => setClienteSelec(e.target.value)} required>
+              <option value="">— Seleccionar —</option>
+              {lista.map(c => (
+                <option key={c.id} value={c.id}>{c.razonSocial} — {c.localidad}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--muted)' }}>
+            <div><strong>Se actualizará:</strong></div>
+            {negocio.formattedAddress    && <div>📍 Dirección: {negocio.formattedAddress}</div>}
+            {negocio.nationalPhoneNumber && <div>📞 Teléfono: {negocio.nationalPhoneNumber}</div>}
+            {negocio.location            && <div>🗺 Coordenadas GPS: sí</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-primary" type="submit" disabled={loading} style={{ flex: 1 }}>
+              {loading ? 'Vinculando...' : '🔗 Vincular y actualizar'}
             </button>
             <button className="btn btn-ghost" type="button" onClick={onClose}>Cancelar</button>
           </div>

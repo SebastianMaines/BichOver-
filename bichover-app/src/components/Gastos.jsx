@@ -27,13 +27,14 @@ function fmt(n) {
 export default function Gastos({ usuario }) {
   const [gastos, setGastos]       = useState({})
   const [showForm, setShowForm]   = useState(false)
-  const [filtroTab, setFiltroTab] = useState('Todos')
+  const [filtroUser, setFiltroUser] = useState('Todos')
+  const [filtroTipo, setFiltroTipo] = useState('Todos')
   const [loading, setLoading]     = useState(false)
 
-  const [tipo, setTipo]          = useState('Nafta')
-  const [monto, setMonto]        = useState('')
-  const [razon, setRazon]        = useState('')
-  const [destinatario, setDest]  = useState('')
+  const [tipo, setTipo]    = useState('Nafta')
+  const [monto, setMonto]  = useState('')
+  const [razon, setRazon]  = useState('')
+  const [dest, setDest]    = useState('')
 
   useEffect(() => {
     return onValue(ref(db, 'gastos'), s => setGastos(s.exists() ? s.val() : {}))
@@ -46,38 +47,22 @@ export default function Gastos({ usuario }) {
     setLoading(true)
     const montoNum = parseFloat(monto)
     const ts = Date.now()
-    const base = {
-      tipo,
-      monto: montoNum,
-      razon,
-      fecha: hoy(),
-      timestamp: ts,
-      usuario,
-      repartido: false,
-    }
-
+    const base = { tipo, monto: montoNum, razon, fecha: hoy(), timestamp: ts, usuario, repartido: false }
     try {
       if (tipo === 'Transferencia') {
-        const dest = destinatario || otroSocio
-        await push(ref(db, 'gastos'), { ...base, destinatario: dest })
+        const d = dest || otroSocio
+        await push(ref(db, 'gastos'), { ...base, destinatario: d })
         await push(ref(db, 'gastos'), {
-          tipo: 'Transferencia',
-          monto: -montoNum,
-          razon: `Recibido de ${usuario}`,
-          fecha: hoy(),
-          timestamp: ts + 1,
-          usuario: dest,
-          repartido: false,
-          destinatario: usuario,
+          tipo: 'Transferencia', monto: -montoNum,
+          razon: `Recibido de ${usuario}`, fecha: hoy(),
+          timestamp: ts + 1, usuario: d, repartido: false, destinatario: usuario,
         })
       } else {
         await push(ref(db, 'gastos'), base)
       }
       setTipo('Nafta'); setMonto(''); setRazon(''); setDest('')
       setShowForm(false)
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   async function handleEliminar(id, gasto) {
@@ -88,20 +73,14 @@ export default function Gastos({ usuario }) {
 
   const lista = Object.entries(gastos)
     .map(([id, g]) => ({ id, ...g }))
-    .filter(g => filtroTab === 'Todos' || g.usuario === filtroTab)
+    .filter(g => filtroUser === 'Todos' || g.usuario === filtroUser)
+    .filter(g => filtroTipo === 'Todos' || g.tipo === filtroTipo)
     .sort((a, b) => b.timestamp - a.timestamp)
-
-  const sinRepartir = Object.values(gastos)
-    .filter(g => !g.repartido && g.monto > 0)
-    .reduce((a, g) => a + g.monto, 0)
 
   return (
     <div>
       <div className="section-header">
-        <div>
-          <h1 className="section-title">💸 Gastos</h1>
-          <div className="section-sub">Sin repartir: <strong className="text-red">{fmt(sinRepartir)}</strong></div>
-        </div>
+        <h1 className="section-title">💸 Gastos</h1>
         <button className="btn btn-primary" onClick={() => setShowForm(v => !v)}>
           {showForm ? '✕ Cerrar' : '+ Registrar Gasto'}
         </button>
@@ -130,8 +109,7 @@ export default function Gastos({ usuario }) {
             {tipo === 'Transferencia' && (
               <div className="form-group">
                 <label className="form-label">Destinatario</label>
-                <select className="form-select" value={destinatario || otroSocio}
-                  onChange={e => setDest(e.target.value)}>
+                <select className="form-select" value={dest || otroSocio} onChange={e => setDest(e.target.value)}>
                   <option value={otroSocio}>{otroSocio}</option>
                 </select>
               </div>
@@ -147,28 +125,49 @@ export default function Gastos({ usuario }) {
       )}
 
       <div className="card">
-        <div className="tabs mb-16">
+        {/* Filtro por usuario */}
+        <div className="tabs mb-12">
           {['Todos', 'Seba', 'Juan'].map(t => (
-            <button key={t} className={`tab-btn ${filtroTab === t ? 'active' : ''}`}
-              onClick={() => setFiltroTab(t)}>{t}</button>
+            <button key={t} className={`tab-btn ${filtroUser === t ? 'active' : ''}`}
+              onClick={() => setFiltroUser(t)}>{t}</button>
+          ))}
+        </div>
+
+        {/* Filtro por tipo */}
+        <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="text-muted fw-600" style={{ fontSize: 12 }}>Tipo:</span>
+          {['Todos', ...TIPOS].map(t => (
+            <button key={t}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 20,
+                border: `1.5px solid ${filtroTipo === t ? 'var(--blue)' : 'var(--border)'}`,
+                background: filtroTipo === t ? 'var(--blue)' : 'var(--white)',
+                color: filtroTipo === t ? '#fff' : 'var(--muted)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all .15s',
+              }}
+              onClick={() => setFiltroTipo(t)}>
+              {t}
+            </button>
           ))}
         </div>
 
         {lista.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">💸</div>
-            <p>No hay gastos registrados</p>
+            <p>No hay gastos que coincidan</p>
           </div>
         ) : lista.map(g => (
           <div key={g.id} className="list-item" style={{ gap: 10, flexWrap: 'wrap' }}>
             <span className={`badge ${TIPO_BADGE[g.tipo] || 'badge-gray'}`}>{g.tipo}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="fw-600" style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div className="fw-600" style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {g.razon}
               </div>
-              <div className="text-muted" style={{ fontSize: 12 }}>
-                {g.fecha} · {g.usuario}
-              </div>
+              <div className="text-muted" style={{ fontSize: 12 }}>{g.fecha} · {g.usuario}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div className={`fw-800 ${g.monto > 0 ? 'text-red' : 'text-green'}`} style={{ fontSize: 15 }}>
@@ -178,7 +177,7 @@ export default function Gastos({ usuario }) {
             {g.repartido
               ? <span className="badge badge-rep">✓ rep.</span>
               : <button className="btn btn-icon btn-danger btn-sm"
-                  onClick={() => handleEliminar(g.id, g)} title="Eliminar">✕</button>
+                  onClick={() => handleEliminar(g.id, g)}>✕</button>
             }
           </div>
         ))}

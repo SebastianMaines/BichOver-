@@ -1,20 +1,29 @@
 import { useState, useEffect } from 'react'
-import { ref, onValue, update, push } from 'firebase/database'
+import { ref, onValue, update, push, set, remove } from 'firebase/database'
 import { db } from '../firebase.js'
 
 function fmt(n) {
   return '$' + Math.round(n).toLocaleString('es-AR')
 }
 
-function tsFromDDMMYYYY(str) {
-  if (!str) return 0
-  const [d, m, y] = str.split('/')
-  return new Date(`${y}-${m}-${d}`).getTime()
-}
-
 function hoy() {
   const d = new Date()
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+function ConfirmModal({ mensaje, onConfirm, onCancel }) {
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-title" style={{ fontSize: 16 }}>⚠️ Confirmar</div>
+        <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 20 }}>{mensaje}</p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-danger" style={{ flex: 1 }} onClick={onConfirm}>Sí, eliminar</button>
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={onCancel}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function Reparto({ usuario }) {
@@ -26,6 +35,7 @@ export default function Reparto({ usuario }) {
   const [fechaFin, setFechaFin]       = useState('')
   const [resultado, setResultado]     = useState(null)
   const [guardando, setGuardando]     = useState(false)
+  const [confirm, setConfirm]         = useState(null)
 
   useEffect(() => {
     const unV = onValue(ref(db, 'ventas'),   s => setVentas(s.exists()   ? s.val() : {}))
@@ -68,12 +78,11 @@ export default function Reparto({ usuario }) {
     }
 
     setResultado({
-      netos,
-      totalNeto,
-      esperado,
-      mensaje,
+      netos, totalNeto, esperado, mensaje,
       ventasIds: ventasFiltradas.map(([id]) => id),
       gastosIds: gastosFiltrados.map(([id]) => id),
+      cantVentas: ventasFiltradas.length,
+      cantGastos: gastosFiltrados.length,
     })
   }
 
@@ -86,14 +95,12 @@ export default function Reparto({ usuario }) {
       resultado.gastosIds.forEach(id => { updates[`gastos/${id}/repartido`] = true })
       await update(ref(db), updates)
 
-      const [d1, m1, y1] = fechaInicio.split('-')
-      const [d2, m2, y2] = fechaFin.split('-')
-      const fi = `${d1}/${m1}/${y1}`
-      const ff = `${d2}/${m2}/${y2}`
+      const [y1, m1, d1] = fechaInicio.split('-')
+      const [y2, m2, d2] = fechaFin.split('-')
 
       await push(ref(db, 'repartos'), {
-        fechaInicio: fi,
-        fechaFin: ff,
+        fechaInicio: `${d1}/${m1}/${y1}`,
+        fechaFin:    `${d2}/${m2}/${y2}`,
         fechaReparto: hoy(),
         timestamp: Date.now(),
         totalNeto: resultado.totalNeto,
@@ -103,9 +110,13 @@ export default function Reparto({ usuario }) {
       setResultado(null)
       setFechaInicio('')
       setFechaFin('')
-    } finally {
-      setGuardando(false)
-    }
+    } finally { setGuardando(false) }
+  }
+
+  async function eliminarReparto(id) {
+    setConfirm(null)
+    await set(ref(db, `repartosEliminados/${id}`), repartos[id])
+    await remove(ref(db, `repartos/${id}`))
   }
 
   const historial = Object.entries(repartos)
@@ -141,20 +152,21 @@ export default function Reparto({ usuario }) {
       {/* Resultado */}
       {resultado && (
         <div className="card mb-16">
-          <h3 className="fw-800 mb-12" style={{ fontSize: 16 }}>Resultado del período</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <h3 className="fw-800" style={{ fontSize: 16 }}>Resultado del período</h3>
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              {resultado.cantVentas} ventas · {resultado.cantGastos} gastos incluidos
+            </span>
+          </div>
 
           <div className="reparto-result-grid">
             {resultado.netos.map(n => (
               <div key={n.usuario} style={{
                 background: n.usuario === 'Seba' ? '#e8f1ff' : '#f3f0ff',
-                borderRadius: 12,
-                padding: '16px',
+                borderRadius: 12, padding: 16,
                 border: `2px solid ${n.usuario === 'Seba' ? 'var(--blue)' : 'var(--purple)'}`,
               }}>
-                <div className="fw-800 mb-8" style={{
-                  fontSize: 16,
-                  color: n.usuario === 'Seba' ? 'var(--blue)' : 'var(--purple)',
-                }}>
+                <div className="fw-800 mb-8" style={{ fontSize: 16, color: n.usuario === 'Seba' ? 'var(--blue)' : 'var(--purple)' }}>
                   {n.usuario === 'Seba' ? '🔵' : '🟣'} {n.usuario}
                 </div>
                 <div className="stat-row">
@@ -173,22 +185,13 @@ export default function Reparto({ usuario }) {
             ))}
           </div>
 
-          <div style={{
-            background: '#fffbeb',
-            border: '2px solid var(--amber)',
-            borderRadius: 12,
-            padding: '14px 18px',
-            marginBottom: 16,
-            fontWeight: 700,
-            fontSize: 15,
-            color: '#92400e',
-          }}>
+          <div style={{ background: '#fffbeb', border: '2px solid var(--amber)', borderRadius: 12, padding: '14px 18px', marginBottom: 16, fontWeight: 700, fontSize: 15, color: '#92400e' }}>
             {resultado.mensaje}
           </div>
 
           <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
             <div className="stat-row" style={{ flex: 1 }}>
-              <span className="stat-label">Ganancia total del período</span>
+              <span className="stat-label">Ganancia total</span>
               <span className="stat-value text-blue fw-800" style={{ fontSize: 18 }}>{fmt(resultado.totalNeto)}</span>
             </div>
             <div className="stat-row" style={{ flex: 1 }}>
@@ -211,29 +214,21 @@ export default function Reparto({ usuario }) {
         <div className="card">
           <h3 className="fw-800 mb-12" style={{ fontSize: 16 }}>Historial de repartos</h3>
           {historial.map(r => (
-            <div key={r.id} style={{
-              borderBottom: '1px solid var(--border)',
-              paddingBottom: 16,
-              marginBottom: 16,
-            }}>
+            <div key={r.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 16, marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                 <div>
-                  <div className="fw-700" style={{ fontSize: 14 }}>
-                    {r.fechaInicio} → {r.fechaFin}
-                  </div>
+                  <div className="fw-700" style={{ fontSize: 14 }}>{r.fechaInicio} → {r.fechaFin}</div>
                   <div className="text-muted" style={{ fontSize: 12 }}>Guardado: {r.fechaReparto}</div>
                 </div>
-                <div className="fw-800 text-blue" style={{ fontSize: 16 }}>{fmt(r.totalNeto)}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="fw-800 text-blue" style={{ fontSize: 16 }}>{fmt(r.totalNeto)}</span>
+                  <button className="btn btn-danger btn-sm"
+                    onClick={() => setConfirm({ id: r.id, periodo: `${r.fechaInicio} → ${r.fechaFin}` })}>
+                    🗑
+                  </button>
+                </div>
               </div>
-              <div style={{
-                background: '#fffbeb',
-                borderRadius: 8,
-                padding: '8px 12px',
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#92400e',
-                marginBottom: 8,
-              }}>
+              <div style={{ background: '#fffbeb', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
                 {r.mensaje}
               </div>
               {Array.isArray(r.netos) && (
@@ -248,6 +243,14 @@ export default function Reparto({ usuario }) {
             </div>
           ))}
         </div>
+      )}
+
+      {confirm && (
+        <ConfirmModal
+          mensaje={`¿Eliminás el reparto del período ${confirm.periodo}? Esta acción no desmarca los ítems ya repartidos.`}
+          onConfirm={() => eliminarReparto(confirm.id)}
+          onCancel={() => setConfirm(null)}
+        />
       )}
     </div>
   )

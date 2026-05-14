@@ -613,4 +613,91 @@ input, select, textarea { font-family: inherit; }
 
 .tier-pill.active-1 { background: #e8f1ff; border-color: var(--blue); color: var(--blue); }
 .tier-pill.active-2 { background: #ecfdf5; border-color: var(--green); color: var(--green); }
+
+/* ── Bottom navigation (mobile only) ───────────────────────── */
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  /* Hide top hamburger menu on mobile — use bottom nav instead */
+  .hamburger { display: none !important; }
+
+  /* Add padding to main content so content isn't hidden behind bottom bar */
+  .main-content { padding-bottom: 76px; }
+
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: var(--navy);
+    border-top: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 -4px 20px rgba(0,0,0,.3);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 10px 4px 8px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.5);
+    font-family: 'Outfit', sans-serif;
+    cursor: pointer;
+    transition: color .15s;
+    position: relative;
+    min-width: 0;
+  }
+
+  .bottom-nav-item.active {
+    color: #60a5fa;
+  }
+
+  .bottom-nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: #60a5fa;
+    border-radius: 0 0 4px 4px;
+  }
+
+  .bottom-nav-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .bottom-nav-label {
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .bottom-nav-badge {
+    position: absolute;
+    top: 6px;
+    right: calc(50% - 18px);
+    background: var(--amber);
+    color: #fff;
+    border-radius: 99px;
+    font-size: 9px;
+    font-weight: 900;
+    padding: 1px 5px;
+    min-width: 16px;
+    text-align: center;
+  }
+}
 .tier-pill.active-3 { background: #fffbeb; border-color: var(--amber); color: var(--amber); }

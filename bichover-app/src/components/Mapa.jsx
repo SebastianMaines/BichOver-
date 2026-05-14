@@ -1279,6 +1279,172 @@ function RutasGuardadas() {
   )
 }
 
+// ── Ruta de Entrega (Pedidos pendientes en el mapa) ──────────────────────────
+function DeliveryPolyline({ puntos }) {
+  const map = useMap()
+  const polyRef = useRef(null)
+
+  useEffect(() => {
+    if (!map) return
+    if (polyRef.current) polyRef.current.setMap(null)
+    if (puntos.length < 2) return
+    polyRef.current = new window.google.maps.Polyline({
+      path: puntos,
+      geodesic: true,
+      strokeColor: '#f59e0b',
+      strokeOpacity: 0.85,
+      strokeWeight: 3,
+      icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 }, offset: '0', repeat: '20px' }],
+    })
+    polyRef.current.setMap(map)
+    return () => { if (polyRef.current) polyRef.current.setMap(null) }
+  }, [map, puntos])
+
+  return null
+}
+
+function RutaEntrega() {
+  const [pedidos, setPedidos]   = useState({})
+  const [clientes, setClientes] = useState({})
+  const [selected, setSelected] = useState(null)
+
+  useEffect(() => {
+    const unP = onValue(ref(db, 'pedidos'),  s => setPedidos(s.exists()  ? s.val() : {}))
+    const unC = onValue(ref(db, 'clientes'), s => setClientes(s.exists() ? s.val() : {}))
+    return () => { unP(); unC() }
+  }, [])
+
+  const pendientes = Object.entries(pedidos)
+    .filter(([, p]) => p.estado === 'pendiente')
+    .map(([id, p]) => {
+      const c = clientes[p.clienteKey] || {}
+      return { id, ...p, lat: c.lat, lng: c.lng, telefono: c.telefono, direccion: c.direccion }
+    })
+    .sort((a, b) => a.timestamp - b.timestamp)
+
+  const conUbic  = pendientes.filter(p => p.lat && p.lng)
+  const sinUbic  = pendientes.filter(p => !p.lat || !p.lng)
+  const puntos   = conUbic.map(p => ({ lat: p.lat, lng: p.lng }))
+
+  function abrirRutaEnMaps() {
+    if (conUbic.length === 0) return
+    const stops = conUbic.map(p => encodeURIComponent(p.direccion || `${p.lat},${p.lng}`))
+    window.open(`https://www.google.com/maps/dir/${stops.join('/')}`, '_blank')
+  }
+
+  const centroMapa = conUbic.length > 0
+    ? { lat: conUbic[0].lat, lng: conUbic[0].lng }
+    : ROSARIO_POS
+
+  if (pendientes.length === 0) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+        <div className="fw-700" style={{ fontSize: 16 }}>Sin pedidos pendientes</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>Registrá encargos en la sección Pedidos</div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <span className="fw-800" style={{ fontSize: 15 }}>
+            {pendientes.length} entrega{pendientes.length !== 1 ? 's' : ''} pendiente{pendientes.length !== 1 ? 's' : ''}
+          </span>
+          {sinUbic.length > 0 && (
+            <span className="text-muted" style={{ fontSize: 12, marginLeft: 8 }}>
+              ({sinUbic.length} sin GPS)
+            </span>
+          )}
+        </div>
+        {conUbic.length > 1 && (
+          <button className="btn btn-primary btn-sm" onClick={abrirRutaEnMaps}>
+            📱 Abrir ruta en Maps
+          </button>
+        )}
+      </div>
+
+      {/* Mapa */}
+      {conUbic.length > 0 && (
+        <div style={{ height: 320, borderRadius: 14, overflow: 'hidden', marginBottom: 16 }}>
+          <Map
+            defaultCenter={centroMapa}
+            defaultZoom={12}
+            mapId="ruta-entrega"
+            style={{ width: '100%', height: '100%' }}
+            gestureHandling="greedy"
+          >
+            {conUbic.map((p, i) => (
+              <AdvancedMarker
+                key={p.id}
+                position={{ lat: p.lat, lng: p.lng }}
+                onClick={() => setSelected(selected?.id === p.id ? null : p)}
+              >
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: '#f59e0b', border: '2px solid #d97706',
+                  color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 900, fontFamily: 'Outfit, sans-serif',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                }}>
+                  {i + 1}
+                </div>
+              </AdvancedMarker>
+            ))}
+            {selected && selected.lat && (
+              <InfoWindow
+                position={{ lat: selected.lat, lng: selected.lng }}
+                onCloseClick={() => setSelected(null)}
+              >
+                <div style={{ fontFamily: 'Outfit, sans-serif', minWidth: 180, padding: 4 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>{selected.cliente}</div>
+                  <div style={{ fontWeight: 700, color: '#f59e0b', fontSize: 15, marginBottom: 4 }}>
+                    {selected.cantidadFrascos} frascos
+                  </div>
+                  {selected.notas && (
+                    <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic', marginBottom: 4 }}>"{selected.notas}"</div>
+                  )}
+                  <ContactoBtns tel={selected.telefono} lat={selected.lat} lng={selected.lng} addr={selected.direccion} small />
+                </div>
+              </InfoWindow>
+            )}
+            <DeliveryPolyline puntos={puntos} />
+          </Map>
+        </div>
+      )}
+
+      {/* Lista */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {conUbic.map((p, i) => (
+          <div key={p.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', background: '#fff', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f59e0b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, flexShrink: 0 }}>
+              {i + 1}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="fw-700" style={{ fontSize: 14 }}>{p.cliente}</div>
+              <div style={{ fontSize: 13, color: 'var(--amber)', fontWeight: 700 }}>{p.cantidadFrascos} frascos</div>
+              {p.notas && <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>📝 {p.notas}</div>}
+              <ContactoBtns tel={p.telefono} lat={p.lat} lng={p.lng} addr={p.direccion} small />
+            </div>
+          </div>
+        ))}
+        {sinUbic.map(p => (
+          <div key={p.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', background: '#fff', borderRadius: 12, border: '1px solid var(--border)', opacity: 0.65 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#94a3b8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, flexShrink: 0 }}>?</div>
+            <div style={{ flex: 1 }}>
+              <div className="fw-700" style={{ fontSize: 14 }}>{p.cliente}</div>
+              <div style={{ fontSize: 13, color: 'var(--amber)', fontWeight: 700 }}>{p.cantidadFrascos} frascos</div>
+              <div style={{ fontSize: 12, color: 'var(--red)' }}>Sin GPS — agregá coordenadas desde Mapa → Mis Clientes</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Componente principal Mapa ─────────────────────────────────────────────────
 export default function Mapa() {
   const [tab, setTab]           = useState('clientes')
@@ -1299,12 +1465,20 @@ export default function Mapa() {
           onClick={() => setTab('clientes')}>👥 Mis Clientes</button>
         <button className={`tab-btn ${tab === 'prospectar' ? 'active' : ''}`}
           onClick={() => setTab('prospectar')}>🔍 Prospectar Zona</button>
+        <button className={`tab-btn ${tab === 'entrega' ? 'active' : ''}`}
+          onClick={() => setTab('entrega')}>📦 Ruta Entrega</button>
         <button className={`tab-btn ${tab === 'rutas' ? 'active' : ''}`}
           onClick={() => setTab('rutas')}>📋 Rutas Guardadas</button>
       </div>
 
       {tab === 'rutas' ? (
         <RutasGuardadas />
+      ) : tab === 'entrega' ? (
+        MAPS_KEY ? (
+          <APIProvider apiKey={MAPS_KEY}><RutaEntrega /></APIProvider>
+        ) : (
+          <RutaEntrega />
+        )
       ) : MAPS_KEY ? (
         <APIProvider apiKey={MAPS_KEY}>
           {tab === 'clientes'   && <MisClientes />}

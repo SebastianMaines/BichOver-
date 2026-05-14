@@ -99,13 +99,15 @@ export default function Reparto({ usuario }) {
       const [y2, m2, d2] = fechaFin.split('-')
 
       await push(ref(db, 'repartos'), {
-        fechaInicio: `${d1}/${m1}/${y1}`,
-        fechaFin:    `${d2}/${m2}/${y2}`,
+        fechaInicio:  `${d1}/${m1}/${y1}`,
+        fechaFin:     `${d2}/${m2}/${y2}`,
         fechaReparto: hoy(),
-        timestamp: Date.now(),
-        totalNeto: resultado.totalNeto,
-        mensaje: resultado.mensaje,
-        netos: resultado.netos,
+        timestamp:    Date.now(),
+        totalNeto:    resultado.totalNeto,
+        mensaje:      resultado.mensaje,
+        netos:        resultado.netos,
+        ventasIds:    resultado.ventasIds,
+        gastosIds:    resultado.gastosIds,
       })
       setResultado(null)
       setFechaInicio('')
@@ -115,7 +117,41 @@ export default function Reparto({ usuario }) {
 
   async function eliminarReparto(id) {
     setConfirm(null)
-    await set(ref(db, `repartosEliminados/${id}`), repartos[id])
+    const reparto = repartos[id]
+
+    // Revertir repartido=false en ventas y gastos incluidos
+    const updates = {}
+
+    if (Array.isArray(reparto.ventasIds) && reparto.ventasIds.length > 0) {
+      // IDs guardados directamente en el reparto (repartos nuevos)
+      reparto.ventasIds.forEach(vid => { updates[`ventas/${vid}/repartido`] = false })
+    } else {
+      // Fallback para repartos viejos sin IDs: buscar por rango de fechas
+      const [d1, m1, y1] = (reparto.fechaInicio || '').split('/')
+      const [d2, m2, y2] = (reparto.fechaFin    || '').split('/')
+      const desde = new Date(`${y1}-${m1}-${d1}`).getTime()
+      const hasta  = new Date(`${y2}-${m2}-${d2}T23:59:59`).getTime()
+      Object.entries(ventas).forEach(([vid, v]) => {
+        if (v.repartido && v.timestamp >= desde && v.timestamp <= hasta)
+          updates[`ventas/${vid}/repartido`] = false
+      })
+    }
+
+    if (Array.isArray(reparto.gastosIds) && reparto.gastosIds.length > 0) {
+      reparto.gastosIds.forEach(gid => { updates[`gastos/${gid}/repartido`] = false })
+    } else {
+      const [d1, m1, y1] = (reparto.fechaInicio || '').split('/')
+      const [d2, m2, y2] = (reparto.fechaFin    || '').split('/')
+      const desde = new Date(`${y1}-${m1}-${d1}`).getTime()
+      const hasta  = new Date(`${y2}-${m2}-${d2}T23:59:59`).getTime()
+      Object.entries(gastos).forEach(([gid, g]) => {
+        if (g.repartido && g.monto > 0 && g.timestamp >= desde && g.timestamp <= hasta)
+          updates[`gastos/${gid}/repartido`] = false
+      })
+    }
+
+    if (Object.keys(updates).length > 0) await update(ref(db), updates)
+    await set(ref(db, `repartosEliminados/${id}`), reparto)
     await remove(ref(db, `repartos/${id}`))
   }
 

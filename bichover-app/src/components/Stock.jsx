@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
-import { ref, onValue, update } from 'firebase/database'
+import { ref, onValue, update, push } from 'firebase/database'
 import { db } from '../firebase.js'
+
+function hoy() {
+  const d = new Date()
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
 
 function AjusteForm({ label, valorActual, onGuardar }) {
   const [accion, setAccion]   = useState('agregar')
@@ -52,24 +57,224 @@ export default function Stock({ usuario }) {
   const [usuarios, setUsuarios]       = useState({})
   const [componentes, setComponentes] = useState({})
   const [expandido, setExpandido]     = useState(null)
+  const [produccion, setProduccion]   = useState({})
+  const [stockMinimos, setStockMinimos] = useState({ seba: '', juan: '', DR: '', AC: '', vacios: '' })
+  const [savingMinimos, setSavingMinimos] = useState(false)
+  const [msgMinimos, setMsgMinimos]   = useState('')
+
+  // Produccion form state
+  const [prodForm, setProdForm] = useState({ frascosProducidos: '', drUsado: '', acUsado: '', vaciosUsados: '' })
+  const [savingProd, setSavingProd] = useState(false)
+  const [msgProd, setMsgProd]     = useState('')
 
   useEffect(() => {
     const unU = onValue(ref(db, 'usuarios'),    s => setUsuarios(s.exists()    ? s.val() : {}))
     const unC = onValue(ref(db, 'componentes'), s => setComponentes(s.exists() ? s.val() : {}))
-    return () => { unU(); unC() }
+    const unP = onValue(ref(db, 'produccion'),  s => setProduccion(s.exists()  ? s.val() : {}))
+    const unM = onValue(ref(db, 'configuracion/stockMinimos'), s => {
+      if (s.exists()) {
+        const v = s.val()
+        setStockMinimos({
+          seba:   v.seba   != null ? String(v.seba)   : '',
+          juan:   v.juan   != null ? String(v.juan)   : '',
+          DR:     v.DR     != null ? String(v.DR)     : '',
+          AC:     v.AC     != null ? String(v.AC)     : '',
+          vacios: v.vacios != null ? String(v.vacios) : '',
+        })
+      }
+    })
+    return () => { unU(); unC(); unP(); unM() }
   }, [])
 
-  const stockSeba  = usuarios.Seba?.stock ?? 0
-  const stockJuan  = usuarios.Juan?.stock ?? 0
-  const stockTotal = stockSeba + stockJuan
-  const stockDR         = componentes.DR          ?? 0
-  const stockAC         = componentes.AC          ?? 0
-  const frascosVacios   = componentes.vacios      ?? 0
+  const stockSeba       = usuarios.Seba?.stock ?? 0
+  const stockJuan       = usuarios.Juan?.stock ?? 0
+  const stockTotal      = stockSeba + stockJuan
+  const stockDR         = componentes.DR     ?? 0
+  const stockAC         = componentes.AC     ?? 0
+  const frascosVacios   = componentes.vacios ?? 0
+  const stockActual     = usuarios[usuario]?.stock ?? 0
+
+  // Stock alerts
+  const alertas = []
+  const minSeba   = stockMinimos.seba   !== '' ? Number(stockMinimos.seba)   : null
+  const minJuan   = stockMinimos.juan   !== '' ? Number(stockMinimos.juan)   : null
+  const minDR     = stockMinimos.DR     !== '' ? Number(stockMinimos.DR)     : null
+  const minAC     = stockMinimos.AC     !== '' ? Number(stockMinimos.AC)     : null
+  const minVacios = stockMinimos.vacios !== '' ? Number(stockMinimos.vacios) : null
+  if (minSeba   != null && stockSeba   < minSeba)   alertas.push(`Frascos Seba: ${stockSeba} (mín. ${minSeba})`)
+  if (minJuan   != null && stockJuan   < minJuan)   alertas.push(`Frascos Juan: ${stockJuan} (mín. ${minJuan})`)
+  if (minDR     != null && stockDR     < minDR)     alertas.push(`DR: ${stockDR} (mín. ${minDR})`)
+  if (minAC     != null && stockAC     < minAC)     alertas.push(`AC: ${stockAC} (mín. ${minAC})`)
+  if (minVacios != null && frascosVacios < minVacios) alertas.push(`Vacíos: ${frascosVacios} (mín. ${minVacios})`)
+
+  // Produccion preview
+  const prodFrascos = parseInt(prodForm.frascosProducidos) || 0
+  const prodDR      = parseInt(prodForm.drUsado)           || 0
+  const prodAC      = parseInt(prodForm.acUsado)           || 0
+  const prodVacios  = parseInt(prodForm.vaciosUsados)      || 0
+
+  const postDR      = stockDR     - prodDR
+  const postAC      = stockAC     - prodAC
+  const postVacios  = frascosVacios - prodVacios
+  const postStock   = stockActual + prodFrascos
+
+  async function handleProduccion(e) {
+    e.preventDefault()
+    if (!prodFrascos) return
+    setSavingProd(true)
+    setMsgProd('')
+    try {
+      await push(ref(db, 'produccion'), {
+        fecha: hoy(),
+        timestamp: Date.now(),
+        usuario,
+        drUsado: prodDR,
+        acUsado: prodAC,
+        vaciosUsados: prodVacios,
+        frascosProducidos: prodFrascos,
+      })
+      await update(ref(db, 'componentes'), {
+        DR: Math.max(0, postDR),
+        AC: Math.max(0, postAC),
+        vacios: Math.max(0, postVacios),
+      })
+      await update(ref(db, `usuarios/${usuario}`), { stock: postStock })
+      setProdForm({ frascosProducidos: '', drUsado: '', acUsado: '', vaciosUsados: '' })
+      setMsgProd('✅ Producción registrada')
+    } finally { setSavingProd(false) }
+  }
+
+  async function guardarMinimos(e) {
+    e.preventDefault()
+    setSavingMinimos(true)
+    setMsgMinimos('')
+    try {
+      const data = {}
+      if (stockMinimos.seba   !== '') data.seba   = Number(stockMinimos.seba)
+      if (stockMinimos.juan   !== '') data.juan   = Number(stockMinimos.juan)
+      if (stockMinimos.DR     !== '') data.DR     = Number(stockMinimos.DR)
+      if (stockMinimos.AC     !== '') data.AC     = Number(stockMinimos.AC)
+      if (stockMinimos.vacios !== '') data.vacios = Number(stockMinimos.vacios)
+      await update(ref(db, 'configuracion/stockMinimos'), data)
+      setMsgMinimos('✅ Alertas guardadas')
+    } finally { setSavingMinimos(false) }
+  }
+
+  const historialProd = Object.entries(produccion)
+    .map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 5)
 
   return (
     <div>
       <div className="section-header">
         <h1 className="section-title">📦 Stock</h1>
+      </div>
+
+      {/* Stock alert banner */}
+      {alertas.length > 0 && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, color: '#991b1b', marginBottom: 6 }}>⚠️ Stock bajo</div>
+          {alertas.map(a => <div key={a} style={{ fontSize: 13, color: '#b91c1c' }}>{a}</div>)}
+        </div>
+      )}
+
+      {/* Registrar producción */}
+      <div className="card mb-20">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => setExpandido(expandido === 'produccion' ? null : 'produccion')}>
+          <span className="fw-800" style={{ fontSize: 15 }}>🏭 Registrar producción</span>
+          <span style={{ fontSize: 18 }}>{expandido === 'produccion' ? '▲' : '▼'}</span>
+        </div>
+        {expandido === 'produccion' && (
+          <div style={{ marginTop: 14 }}>
+            <form onSubmit={handleProduccion}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-group">
+                  <label className="form-label">Frascos producidos</label>
+                  <input className="form-input" type="number" min="1" step="1" placeholder="0" required
+                    value={prodForm.frascosProducidos}
+                    onChange={e => setProdForm(f => ({ ...f, frascosProducidos: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">DR usado</label>
+                  <input className="form-input" type="number" min="0" step="1" placeholder="0" required
+                    value={prodForm.drUsado}
+                    onChange={e => setProdForm(f => ({ ...f, drUsado: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">AC usado</label>
+                  <input className="form-input" type="number" min="0" step="1" placeholder="0" required
+                    value={prodForm.acUsado}
+                    onChange={e => setProdForm(f => ({ ...f, acUsado: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Vacíos usados</label>
+                  <input className="form-input" type="number" min="0" step="1" placeholder="0" required
+                    value={prodForm.vaciosUsados}
+                    onChange={e => setProdForm(f => ({ ...f, vaciosUsados: e.target.value }))} />
+                </div>
+              </div>
+
+              {(prodFrascos > 0 || prodDR > 0 || prodAC > 0 || prodVacios > 0) && (
+                <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                  <div className="fw-700 mb-8" style={{ fontSize: 13, color: 'var(--muted)' }}>Vista previa post-producción</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                    <div style={{ fontSize: 13 }}>
+                      <span className="text-muted">DR: </span>
+                      <span className={`fw-800 ${postDR < 0 ? 'text-red' : 'text-green'}`}>{postDR}</span>
+                      <span className="text-muted" style={{ fontSize: 11 }}> (era {stockDR})</span>
+                    </div>
+                    <div style={{ fontSize: 13 }}>
+                      <span className="text-muted">AC: </span>
+                      <span className={`fw-800 ${postAC < 0 ? 'text-red' : 'text-green'}`}>{postAC}</span>
+                      <span className="text-muted" style={{ fontSize: 11 }}> (era {stockAC})</span>
+                    </div>
+                    <div style={{ fontSize: 13 }}>
+                      <span className="text-muted">Vacíos: </span>
+                      <span className={`fw-800 ${postVacios < 0 ? 'text-red' : 'text-green'}`}>{postVacios}</span>
+                      <span className="text-muted" style={{ fontSize: 11 }}> (era {frascosVacios})</span>
+                    </div>
+                    <div style={{ fontSize: 13 }}>
+                      <span className="text-muted">Stock {usuario}: </span>
+                      <span className="fw-800 text-blue">{postStock}</span>
+                      <span className="text-muted" style={{ fontSize: 11 }}> (era {stockActual})</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button className="btn btn-primary btn-sm" type="submit" disabled={savingProd}>
+                {savingProd ? 'Guardando...' : '🏭 Registrar producción'}
+              </button>
+              {msgProd && <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>{msgProd}</div>}
+            </form>
+
+            {/* Historial producción */}
+            <div style={{ marginTop: 20 }}>
+              <div className="fw-700 mb-8" style={{ fontSize: 13, color: 'var(--muted)' }}>📋 Últimas 5 producciones</div>
+              {historialProd.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin registros de producción.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {historialProd.map(p => (
+                    <div key={p.id} style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span className="fw-700" style={{ fontSize: 13 }}>{p.fecha}</span>
+                        <span style={{ background: '#e8f1ff', color: 'var(--blue)', borderRadius: 6, padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>
+                          +{p.frascosProducidos} frascos
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        {p.usuario} · DR: {p.drUsado} · AC: {p.acUsado} · Vacíos: {p.vaciosUsados}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Frascos terminados */}
@@ -165,7 +370,7 @@ export default function Stock({ usuario }) {
         )}
       </div>
 
-      <div className="card">
+      <div className="card mb-20">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
           onClick={() => setExpandido(expandido === 'AC' ? null : 'AC')}>
           <span className="fw-800" style={{ fontSize: 15 }}>Ajustar componente AC</span>
@@ -174,6 +379,55 @@ export default function Stock({ usuario }) {
         {expandido === 'AC' && (
           <AjusteForm label="AC" valorActual={stockAC}
             onGuardar={v => update(ref(db, 'componentes'), { AC: v })} />
+        )}
+      </div>
+
+      {/* Configurar alertas mínimas */}
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => setExpandido(expandido === 'alertas' ? null : 'alertas')}>
+          <span className="fw-800" style={{ fontSize: 15 }}>⚙️ Configurar alertas mínimas</span>
+          <span style={{ fontSize: 18 }}>{expandido === 'alertas' ? '▲' : '▼'}</span>
+        </div>
+        {expandido === 'alertas' && (
+          <form onSubmit={guardarMinimos} style={{ marginTop: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Frascos Seba (mín.)</label>
+                <input className="form-input" type="number" min="0" step="1" placeholder="Sin alerta"
+                  value={stockMinimos.seba}
+                  onChange={e => setStockMinimos(m => ({ ...m, seba: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Frascos Juan (mín.)</label>
+                <input className="form-input" type="number" min="0" step="1" placeholder="Sin alerta"
+                  value={stockMinimos.juan}
+                  onChange={e => setStockMinimos(m => ({ ...m, juan: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">DR (mín.)</label>
+                <input className="form-input" type="number" min="0" step="1" placeholder="Sin alerta"
+                  value={stockMinimos.DR}
+                  onChange={e => setStockMinimos(m => ({ ...m, DR: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">AC (mín.)</label>
+                <input className="form-input" type="number" min="0" step="1" placeholder="Sin alerta"
+                  value={stockMinimos.AC}
+                  onChange={e => setStockMinimos(m => ({ ...m, AC: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Vacíos (mín.)</label>
+                <input className="form-input" type="number" min="0" step="1" placeholder="Sin alerta"
+                  value={stockMinimos.vacios}
+                  onChange={e => setStockMinimos(m => ({ ...m, vacios: e.target.value }))} />
+              </div>
+            </div>
+            <button className="btn btn-primary btn-sm" type="submit" disabled={savingMinimos}>
+              {savingMinimos ? 'Guardando...' : '💾 Guardar alertas'}
+            </button>
+            {msgMinimos && <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>{msgMinimos}</div>}
+          </form>
         )}
       </div>
     </div>

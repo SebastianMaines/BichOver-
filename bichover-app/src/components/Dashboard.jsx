@@ -249,6 +249,15 @@ export default function Dashboard({ usuario, onNavTo }) {
     .map(([id, p]) => ({ id, ...p }))
     .sort((a, b) => a.timestamp - b.timestamp)
 
+  // Resumen del día
+  const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0)
+  const hoyStr = hoy()
+  const ventasHoy    = ventas.filter(v => v.timestamp >= inicioDia.getTime())
+  const frascosHoy   = ventasHoy.reduce((s, v) => s + v.cantidadFrascos, 0)
+  const plataHoy     = ventasHoy.reduce((s, v) => s + v.cantidadFrascos * v.precioVenta, 0)
+  const gastosHoy    = gastos.filter(g => g.timestamp >= inicioDia.getTime() && g.monto > 0).reduce((s, g) => s + g.monto, 0)
+  const entregadosHoy = Object.values(pedidos).filter(p => p.estado === 'entregado' && p.fechaEntrega === hoyStr).length
+
   async function guardarObjetivo() {
     const num = parseFloat(nuevoObjetivo)
     if (!num || num <= 0) return
@@ -278,6 +287,38 @@ export default function Dashboard({ usuario, onNavTo }) {
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-primary" onClick={() => setShowSale(true)}>⚡ Venta Rápida</button>
           <button className="btn btn-danger"  onClick={() => setShowExpense(true)}>⚡ Gasto Rápido</button>
+        </div>
+      </div>
+
+      {/* Resumen del día */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16,
+        background: 'linear-gradient(135deg, #0b1f3a, #1a3a6b)',
+        borderRadius: 14, padding: '16px 18px',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ color: 'rgba(255,255,255,.55)', fontSize: 11, fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Hoy</div>
+          <div style={{ color: '#60a5fa', fontSize: 26, fontWeight: 900 }}>{frascosHoy || '—'}</div>
+          <div style={{ color: 'rgba(255,255,255,.5)', fontSize: 11 }}>frascos</div>
+        </div>
+        <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.1)' }}>
+          <div style={{ color: 'rgba(255,255,255,.55)', fontSize: 11, fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Cobrado</div>
+          <div style={{ color: '#34d399', fontSize: plataHoy >= 100000 ? 18 : 24, fontWeight: 900 }}>
+            {plataHoy ? '$' + Math.round(plataHoy).toLocaleString('es-AR') : '—'}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,.5)', fontSize: 11 }}>{ventasHoy.length} venta{ventasHoy.length !== 1 ? 's' : ''}</div>
+        </div>
+        <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.1)' }}>
+          <div style={{ color: 'rgba(255,255,255,.55)', fontSize: 11, fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Gastos</div>
+          <div style={{ color: gastosHoy > 0 ? '#f87171' : 'rgba(255,255,255,.3)', fontSize: 22, fontWeight: 900 }}>
+            {gastosHoy ? '$' + Math.round(gastosHoy).toLocaleString('es-AR') : '—'}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,.5)', fontSize: 11 }}>del día</div>
+        </div>
+        <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.1)' }}>
+          <div style={{ color: 'rgba(255,255,255,.55)', fontSize: 11, fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Entregas</div>
+          <div style={{ color: entregadosHoy > 0 ? '#fbbf24' : 'rgba(255,255,255,.3)', fontSize: 26, fontWeight: 900 }}>{entregadosHoy || '—'}</div>
+          <div style={{ color: 'rgba(255,255,255,.5)', fontSize: 11 }}>pedidos</div>
         </div>
       </div>
 

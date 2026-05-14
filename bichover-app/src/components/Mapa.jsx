@@ -53,12 +53,136 @@ async function geocodificar(localidad) {
 }
 
 // ── Solapa A: Mis Clientes ────────────────────────────────────────────────────
+function AgregarClienteModal({ onClose }) {
+  const [query, setQuery]       = useState('')
+  const [sugerencias, setSugs]  = useState([])
+  const [seleccionado, setSel]  = useState(null)
+  const [localidad, setLocalidad] = useState('')
+  const [tier, setTier]         = useState(1)
+  const [loading, setLoading]   = useState(false)
+  const debRef = useRef(null)
+
+  async function handleQueryChange(e) {
+    const val = e.target.value
+    setQuery(val)
+    setSel(null)
+    if (debRef.current) clearTimeout(debRef.current)
+    if (val.length < 2) { setSugs([]); return }
+    debRef.current = setTimeout(async () => {
+      if (!MAPS_KEY) return
+      try {
+        const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': MAPS_KEY },
+          body: JSON.stringify({ input: val, includedRegionCodes: ['ar'] }),
+        })
+        const data = await res.json()
+        setSugs((data.suggestions || []).map(s => s.placePrediction).filter(Boolean))
+      } catch { /* ignore */ }
+    }, 300)
+  }
+
+  async function seleccionar(pred) {
+    setSugs([])
+    const nombre = pred.structuredFormat?.mainText?.text || pred.text?.text || ''
+    setQuery(nombre)
+    try {
+      const resourceName = pred.place || `places/${pred.placeId}`
+      const res = await fetch(`https://places.googleapis.com/v1/${resourceName}`, {
+        headers: { 'X-Goog-Api-Key': MAPS_KEY, 'X-Goog-FieldMask': 'displayName,formattedAddress,location,nationalPhoneNumber,addressComponents' },
+      })
+      const data = await res.json()
+      const loc = data.addressComponents?.find(c => c.types?.includes('locality'))?.longText || ''
+      setLocalidad(loc)
+      setSel(data)
+    } catch { /* ignore */ }
+  }
+
+  async function guardar(e) {
+    e.preventDefault()
+    if (!seleccionado) return
+    setLoading(true)
+    await fbPush(ref(db, 'clientes'), {
+      razonSocial: seleccionado.displayName?.text || query,
+      localidad,
+      direccion: seleccionado.formattedAddress || '',
+      telefono: seleccionado.nationalPhoneNumber || '',
+      tier: Number(tier),
+      cantidadFrascos: 0,
+      fechaUltimaCompra: null,
+      timestamp: Date.now(),
+      lat: seleccionado.location?.latitude ?? null,
+      lng: seleccionado.location?.longitude ?? null,
+    })
+    setLoading(false)
+    onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">➕ Agregar cliente</div>
+        <form onSubmit={guardar}>
+          <div className="form-group">
+            <label className="form-label">Buscar negocio</label>
+            <div style={{ position: 'relative' }}>
+              <input className="form-input" autoComplete="off"
+                placeholder="Nombre del negocio..."
+                value={query} onChange={handleQueryChange} />
+              {sugerencias.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.14)', marginTop: 2, maxHeight: 220, overflowY: 'auto' }}>
+                  {sugerencias.map(s => (
+                    <div key={s.placeId} onMouseDown={() => seleccionar(s)}
+                      style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{s.structuredFormat?.mainText?.text || s.text?.text}</div>
+                      {s.structuredFormat?.secondaryText?.text && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.structuredFormat.secondaryText.text}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {seleccionado && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Localidad</label>
+                <input className="form-input" value={localidad}
+                  onChange={e => setLocalidad(e.target.value)} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Tipo de cliente</label>
+                <select className="form-select" value={tier} onChange={e => setTier(Number(e.target.value))}>
+                  <option value={1}>🏊 Exclusivo Piscinas</option>
+                  <option value={2}>🔧 Ferretería / Limpieza</option>
+                  <option value={3}>📦 Distribuidor</option>
+                </select>
+              </div>
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: 'var(--muted)', lineHeight: 1.8 }}>
+                {seleccionado.formattedAddress && <div>📍 {seleccionado.formattedAddress}</div>}
+                {seleccionado.nationalPhoneNumber && <div>📞 {seleccionado.nationalPhoneNumber}</div>}
+                {seleccionado.location && <div>🗺 GPS: sí</div>}
+              </div>
+            </>
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-primary" type="submit" disabled={loading || !seleccionado} style={{ flex: 1 }}>
+              {loading ? 'Guardando...' : '💾 Agregar cliente'}
+            </button>
+            <button className="btn btn-ghost" type="button" onClick={onClose}>Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function MisClientes() {
-  const [clientes, setClientes]       = useState({})
-  const [selected, setSelected]       = useState(null)
-  const [filtroLoc, setFiltroLoc]     = useState('')
-  const [filtroTier, setFiltroTier]   = useState([])
-  const [geocoding, setGeocoding]     = useState(false)
+  const [clientes, setClientes]         = useState({})
+  const [selected, setSelected]         = useState(null)
+  const [filtroLoc, setFiltroLoc]       = useState('')
+  const [filtroTier, setFiltroTier]     = useState([])
+  const [geocoding, setGeocoding]       = useState(false)
+  const [showAgregar, setShowAgregar]   = useState(false)
 
   useEffect(() => {
     return onValue(ref(db, 'clientes'), s => setClientes(s.exists() ? s.val() : {}))
@@ -111,6 +235,10 @@ function MisClientes() {
             )
           })}
         </div>
+        <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }}
+          onClick={() => setShowAgregar(true)}>
+          ➕ Agregar cliente
+        </button>
       </div>
 
       {/* Leyenda */}
@@ -173,6 +301,8 @@ function MisClientes() {
           </div>
         )}
       </div>
+
+      {showAgregar && <AgregarClienteModal onClose={() => setShowAgregar(false)} />}
 
       {/* Sin ubicación */}
       {sinUbicacion.length > 0 && (
@@ -352,11 +482,11 @@ function ProspectarZona({ clientes }) {
     const seen = new Set()
     const resultadosTodos = []
     const coordsClientes = Object.values(clientes).filter(c => c.lat && c.lng).map(c => ({ lat: c.lat, lng: c.lng }))
-    const nombresClientes = Object.values(clientes).map(c => (c.razonSocial || '').toLowerCase().trim()).filter(n => n.length >= 4)
+    const nombresClientes = Object.values(clientes).map(c => (c.razonSocial || '').toLowerCase().trim()).filter(n => n.length >= 12)
 
     function esClienteCoincidente(place) {
       const nombre = (place.displayName?.text || '').toLowerCase().trim()
-      // Coincidencia por nombre: uno contiene al otro completamente
+      // Coincidencia por nombre: uno contiene al otro (solo si el nombre del cliente tiene ≥12 chars)
       if (nombresClientes.some(nc => nombre.includes(nc) || nc.includes(nombre))) return true
       // Coincidencia por coordenadas GPS (menos de 100m de distancia)
       if (place.location) {

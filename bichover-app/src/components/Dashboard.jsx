@@ -258,6 +258,22 @@ export default function Dashboard({ usuario, onNavTo }) {
   const gastosHoy    = gastos.filter(g => g.timestamp >= inicioDia.getTime() && g.monto > 0).reduce((s, g) => s + g.monto, 0)
   const entregadosHoy = Object.values(pedidos).filter(p => p.estado === 'entregado' && p.fechaEntrega === hoyStr).length
 
+  // Lista de llamadas: clientes sin comprar hace 30+ días
+  const DISMISS_KEY = `llamadas_dismiss_${hoyStr}`
+  const dismissedHoy = (() => { try { return JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]') } catch { return [] } })()
+
+  const paraLlamar = Object.entries(clientes)
+    .map(([id, c]) => ({ id, ...c, diasSinComprar: diasDesdeStr(c.fechaUltimaCompra) }))
+    .filter(c => c.diasSinComprar != null && c.diasSinComprar >= 30 && !dismissedHoy.includes(c.id))
+    .sort((a, b) => b.diasSinComprar - a.diasSinComprar)
+    .slice(0, 8)
+
+  function ignorarLlamada(id) {
+    const nuevos = [...dismissedHoy, id]
+    localStorage.setItem(DISMISS_KEY, JSON.stringify(nuevos))
+    setClientes(prev => ({ ...prev })) // trigger re-render
+  }
+
   async function guardarObjetivo() {
     const num = parseFloat(nuevoObjetivo)
     if (!num || num <= 0) return
@@ -435,6 +451,53 @@ export default function Dashboard({ usuario, onNavTo }) {
                 + {pedidosPendientes.length - 4} más
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Lista de llamadas del día */}
+      {paraLlamar.length > 0 && (
+        <div className="card mt-20" style={{ borderLeft: '4px solid var(--red)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span className="fw-800" style={{ fontSize: 16 }}>
+              📞 Para llamar hoy
+              <span style={{ marginLeft: 8, background: 'var(--red)', color: '#fff', borderRadius: 20, fontSize: 12, padding: '2px 8px', fontWeight: 900 }}>
+                {paraLlamar.length}
+              </span>
+            </span>
+            <span className="text-muted" style={{ fontSize: 12 }}>+30 días sin comprar</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {paraLlamar.map(c => {
+              const wa = c.telefono ? (() => {
+                const d = c.telefono.replace(/\D/g, '')
+                if (!d) return null
+                const num = d.startsWith('54') ? d : d.startsWith('0') ? '54' + d.slice(1) : '54' + d
+                return `https://wa.me/${num}`
+              })() : null
+              return (
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--bg)', borderRadius: 10, gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="fw-700" style={{ fontSize: 14 }}>{c.razonSocial}</div>
+                    <div style={{ fontSize: 12, color: c.diasSinComprar >= 60 ? 'var(--red)' : 'var(--muted)', fontWeight: 600 }}>
+                      {c.diasSinComprar} días sin comprar
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    {wa && (
+                      <a href={wa} target="_blank" rel="noopener noreferrer"
+                        style={{ background: '#25d366', color: '#fff', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                        💬
+                      </a>
+                    )}
+                    <button onClick={() => ignorarLlamada(c.id)}
+                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 8px', fontSize: 12, color: 'var(--muted)', cursor: 'pointer' }}>
+                      ✓ Ya llamé
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

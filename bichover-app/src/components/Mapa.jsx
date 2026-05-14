@@ -1279,6 +1279,179 @@ function RutasGuardadas() {
   )
 }
 
+// ── Modo en Ruta (pantalla conductor) ────────────────────────────────────────
+function hoyMapa() {
+  const d = new Date()
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+function ModoRuta({ lista, clientes, usuarios, usuario, onClose }) {
+  const [idx, setIdx]           = useState(0)
+  const [entregando, setEntregando] = useState(false)
+  const [precio, setPrecio]     = useState('')
+  const [loading, setLoading]   = useState(false)
+
+  const actual = lista[idx] || null
+
+  // Keep screen awake while in route mode
+  useEffect(() => {
+    let wl = null
+    if ('wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').then(l => { wl = l }).catch(() => {})
+    }
+    return () => { if (wl) wl.release() }
+  }, [])
+
+  // Pre-fill price from precioHabitual
+  useEffect(() => {
+    if (!actual) return
+    const ph = clientes[actual.clienteKey]?.precioHabitual
+    setPrecio(ph ? String(ph) : '')
+    setEntregando(false)
+  }, [idx, actual?.id])
+
+  async function confirmarEntrega() {
+    if (!actual || !parseFloat(precio)) return
+    setLoading(true)
+    const precioNum = parseFloat(precio)
+    const vendedor  = actual.usuario || usuario
+    const clienteData = clientes[actual.clienteKey] || {}
+    const stockActual = usuarios[vendedor]?.stock ?? 0
+    try {
+      await fbPush(ref(db, 'ventas'), {
+        clienteKey: actual.clienteKey, cliente: actual.cliente,
+        cantidadFrascos: actual.cantidadFrascos, precioVenta: precioNum,
+        fechaVenta: hoyMapa(), timestamp: Date.now(),
+        usuario: vendedor, repartido: false, canal: 'Presencial',
+      })
+      const upd = {}
+      upd[`clientes/${actual.clienteKey}/cantidadFrascos`] = (clienteData.cantidadFrascos || 0) + actual.cantidadFrascos
+      upd[`clientes/${actual.clienteKey}/fechaUltimaCompra`] = hoyMapa()
+      upd[`clientes/${actual.clienteKey}/precioHabitual`]   = precioNum
+      upd[`usuarios/${vendedor}/stock`]                     = Math.max(0, stockActual - actual.cantidadFrascos)
+      upd[`pedidos/${actual.id}/estado`]                    = 'entregado'
+      upd[`pedidos/${actual.id}/fechaEntrega`]              = hoyMapa()
+      upd[`pedidos/${actual.id}/precioVenta`]               = precioNum
+      await update(ref(db), upd)
+      setEntregando(false)
+      if (lista.length <= 1) { onClose(); return }
+      setIdx(i => Math.min(i, lista.length - 2))
+    } finally { setLoading(false) }
+  }
+
+  if (!actual || lista.length === 0) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: '#0b1f3a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ fontSize: 72, marginBottom: 20 }}>✅</div>
+        <div style={{ color: '#fff', fontSize: 26, fontWeight: 900, marginBottom: 8 }}>¡Todo entregado!</div>
+        <button onClick={onClose} style={{ marginTop: 24, background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 14, padding: '14px 32px', fontSize: 16, fontWeight: 700 }}>
+          Salir
+        </button>
+      </div>
+    )
+  }
+
+  const wa  = waUrl(actual.telefono)
+  const dir = mapsDir(actual.lat, actual.lng, actual.direccion)
+  const precioNum = parseFloat(precio) || 0
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: '#0b1f3a', display: 'flex', flexDirection: 'column', fontFamily: 'Outfit, sans-serif' }}>
+
+      {/* Top bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
+        <div style={{ color: 'rgba(255,255,255,.6)', fontSize: 14, fontWeight: 700 }}>
+          🚗 Entrega {idx + 1} de {lista.length}
+        </div>
+        <button onClick={onClose} style={{ background: 'rgba(255,255,255,.12)', border: 'none', color: '#fff', borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 700 }}>
+          ✕ Salir
+        </button>
+      </div>
+
+      {/* Cliente info */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', textAlign: 'center' }}>
+        <div style={{ color: '#fff', fontSize: 36, fontWeight: 900, lineHeight: 1.2, marginBottom: 12 }}>
+          {actual.cliente}
+        </div>
+        <div style={{ color: '#fbbf24', fontSize: 28, fontWeight: 900, marginBottom: 8 }}>
+          {actual.cantidadFrascos} frascos
+        </div>
+        {actual.notas && (
+          <div style={{ color: 'rgba(255,255,255,.6)', fontSize: 16, fontStyle: 'italic', marginBottom: 8 }}>
+            "{actual.notas}"
+          </div>
+        )}
+        {actual.direccion && (
+          <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 13, marginBottom: 24 }}>
+            📍 {actual.direccion}
+          </div>
+        )}
+
+        {/* Contact buttons */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {wa && (
+            <a href={wa} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#25d366', color: '#fff', borderRadius: 14, padding: '14px 24px', fontSize: 18, fontWeight: 800, textDecoration: 'none' }}>
+              💬 WhatsApp
+            </a>
+          )}
+          {dir && (
+            <a href={dir} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#4285f4', color: '#fff', borderRadius: 14, padding: '14px 24px', fontSize: 18, fontWeight: 800, textDecoration: 'none' }}>
+              🗺 Cómo llegar
+            </a>
+          )}
+        </div>
+
+        {/* Entregar panel */}
+        {entregando ? (
+          <div style={{ background: 'rgba(255,255,255,.08)', borderRadius: 16, padding: 20, width: '100%', maxWidth: 360 }}>
+            <div style={{ color: '#fff', fontWeight: 700, marginBottom: 10 }}>Precio por frasco ($)</div>
+            <input
+              type="number" inputMode="decimal" placeholder="0"
+              value={precio} onChange={e => setPrecio(e.target.value)}
+              autoFocus
+              style={{ width: '100%', background: 'rgba(255,255,255,.15)', border: '1.5px solid rgba(255,255,255,.3)', borderRadius: 10, color: '#fff', fontSize: 20, fontWeight: 800, padding: '12px 14px', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+            />
+            {precioNum > 0 && (
+              <div style={{ color: '#34d399', fontSize: 18, fontWeight: 900, marginBottom: 14 }}>
+                Total: ${Math.round(actual.cantidadFrascos * precioNum).toLocaleString('es-AR')}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button disabled={!precioNum || loading} onClick={confirmarEntrega}
+                style={{ flex: 1, background: '#10b981', border: 'none', color: '#fff', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 800 }}>
+                {loading ? 'Guardando...' : '✅ Confirmar'}
+              </button>
+              <button onClick={() => setEntregando(false)}
+                style={{ background: 'rgba(255,255,255,.12)', border: 'none', color: '#fff', borderRadius: 12, padding: '14px 18px', fontSize: 15, fontWeight: 700 }}>
+                Volver
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setEntregando(true)}
+            style={{ background: '#10b981', border: 'none', color: '#fff', borderRadius: 16, padding: '18px 40px', fontSize: 20, fontWeight: 900 }}>
+            ✅ Entregar
+          </button>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div style={{ display: 'flex', gap: 12, padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,.1)' }}>
+        <button onClick={() => setIdx(i => Math.max(0, i - 1))} disabled={idx === 0}
+          style={{ flex: 1, background: 'rgba(255,255,255,.1)', border: 'none', color: idx === 0 ? 'rgba(255,255,255,.25)' : '#fff', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 700 }}>
+          ← Anterior
+        </button>
+        <button onClick={() => setIdx(i => Math.min(lista.length - 1, i + 1))} disabled={idx === lista.length - 1}
+          style={{ flex: 1, background: 'rgba(255,255,255,.1)', border: 'none', color: idx === lista.length - 1 ? 'rgba(255,255,255,.25)' : '#fff', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 700 }}>
+          Siguiente →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Ruta de Entrega (Pedidos pendientes en el mapa) ──────────────────────────
 function DeliveryPolyline({ puntos }) {
   const map = useMap()
@@ -1303,15 +1476,18 @@ function DeliveryPolyline({ puntos }) {
   return null
 }
 
-function RutaEntrega() {
+function RutaEntrega({ usuario }) {
   const [pedidos, setPedidos]   = useState({})
   const [clientes, setClientes] = useState({})
+  const [usuarios, setUsuarios] = useState({})
   const [selected, setSelected] = useState(null)
+  const [modoRuta, setModoRuta] = useState(false)
 
   useEffect(() => {
     const unP = onValue(ref(db, 'pedidos'),  s => setPedidos(s.exists()  ? s.val() : {}))
     const unC = onValue(ref(db, 'clientes'), s => setClientes(s.exists() ? s.val() : {}))
-    return () => { unP(); unC() }
+    const unU = onValue(ref(db, 'usuarios'), s => setUsuarios(s.exists() ? s.val() : {}))
+    return () => { unP(); unC(); unU() }
   }, [])
 
   const pendientes = Object.entries(pedidos)
@@ -1348,6 +1524,16 @@ function RutaEntrega() {
 
   return (
     <div>
+      {modoRuta && (
+        <ModoRuta
+          lista={pendientes}
+          clientes={clientes}
+          usuarios={usuarios}
+          usuario={usuario}
+          onClose={() => setModoRuta(false)}
+        />
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div>
           <span className="fw-800" style={{ fontSize: 15 }}>
@@ -1359,11 +1545,16 @@ function RutaEntrega() {
             </span>
           )}
         </div>
-        {conUbic.length > 1 && (
-          <button className="btn btn-primary btn-sm" onClick={abrirRutaEnMaps}>
-            📱 Abrir ruta en Maps
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-amber btn-sm" onClick={() => setModoRuta(true)}>
+            🚗 Modo en Ruta
           </button>
-        )}
+          {conUbic.length > 1 && (
+            <button className="btn btn-primary btn-sm" onClick={abrirRutaEnMaps}>
+              📱 Abrir en Maps
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mapa */}
@@ -1446,7 +1637,7 @@ function RutaEntrega() {
 }
 
 // ── Componente principal Mapa ─────────────────────────────────────────────────
-export default function Mapa() {
+export default function Mapa({ usuario }) {
   const [tab, setTab]           = useState('clientes')
   const [clientes, setClientes] = useState({})
 
@@ -1475,9 +1666,9 @@ export default function Mapa() {
         <RutasGuardadas />
       ) : tab === 'entrega' ? (
         MAPS_KEY ? (
-          <APIProvider apiKey={MAPS_KEY}><RutaEntrega /></APIProvider>
+          <APIProvider apiKey={MAPS_KEY}><RutaEntrega usuario={usuario} /></APIProvider>
         ) : (
-          <RutaEntrega />
+          <RutaEntrega usuario={usuario} />
         )
       ) : MAPS_KEY ? (
         <APIProvider apiKey={MAPS_KEY}>

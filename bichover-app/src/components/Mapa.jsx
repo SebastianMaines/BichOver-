@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ref, onValue, update, push as fbPush, remove } from 'firebase/database'
+import { ref, onValue, update, push as fbPush, remove, set } from 'firebase/database'
 import { db } from '../firebase.js'
 import {
   APIProvider,
@@ -12,6 +12,13 @@ import {
 
 const MAPS_KEY    = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 const ROSARIO_POS = { lat: -32.9468, lng: -60.6393 }
+
+const ESTADOS_PROSPECTO = [
+  { value: 'interesado',    label: '⭐ Le interesó',          color: '#f59e0b' },
+  { value: 'info',          label: '📧 Pidió información',    color: '#06b6d4' },
+  { value: 'no_interesado', label: '😐 No le interesó',      color: '#f97316' },
+  { value: 'rechazado',     label: '❌ Rechazó',             color: '#ef4444' },
+]
 
 const TIER_CONFIG = {
   1: { label: '🏊 Exc. Piscinas', color: '#1a6bff', bg: '#e8f1ff', glyph: '🏊' },
@@ -255,8 +262,14 @@ function ProspectarZona({ clientes }) {
   const [nombreRuta, setNombreRuta]   = useState('')
   const [guardandoRuta, setGuardandoRuta] = useState(false)
   const [rutaGuardadaMsg, setRutaGuardadaMsg] = useState('')
+  const [prospectos, setProspectos]     = useState({})
+  const [modalVisita, setModalVisita]   = useState(null)
   const debounceRef = useRef(null)
   const dropRef     = useRef(null)
+
+  useEffect(() => {
+    return onValue(ref(db, 'prospectos'), s => setProspectos(s.exists() ? s.val() : {}))
+  }, [])
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -297,13 +310,26 @@ function ProspectarZona({ clientes }) {
     const nombre = pred.structuredFormat?.mainText?.text || pred.text?.text || ''
     setAcInput(nombre)
     try {
-      const res = await fetch(`https://places.googleapis.com/v1/${pred.placeId}?fields=location,types`, {
-        headers: { 'X-Goog-Api-Key': MAPS_KEY },
+      const resourceName = pred.place || `places/${pred.placeId}`
+      const res = await fetch(`https://places.googleapis.com/v1/${resourceName}`, {
+        headers: { 'X-Goog-Api-Key': MAPS_KEY, 'X-Goog-FieldMask': 'location,types' },
       })
       const data = await res.json()
       const tipos = data.types || []
       const esBarrio = tipos.some(t => ['neighborhood', 'sublocality', 'sublocality_level_1', 'sublocality_level_2'].includes(t))
-      setLugarSelec({ nombre, lat: data.location?.latitude, lng: data.location?.longitude, radio: esBarrio ? 2500 : 15000 })
+      const lat = data.location?.latitude
+      const lng = data.location?.longitude
+      if (lat && lng) {
+        setLugarSelec({ nombre, lat, lng, radio: esBarrio ? 2500 : 15000 })
+      } else {
+        // fallback: geocode the name
+        const geoRes  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(nombre + ', Argentina')}&key=${MAPS_KEY}`)
+        const geoData = await geoRes.json()
+        if (geoData.results?.length > 0) {
+          const loc = geoData.results[0].geometry.location
+          setLugarSelec({ nombre, lat: loc.lat, lng: loc.lng, radio: 5000 })
+        }
+      }
     } catch { /* ignore */ }
   }
 
@@ -346,9 +372,9 @@ function ProspectarZona({ clientes }) {
             if (p.businessStatus !== 'OPERATIONAL') continue
             if (seen.has(p.id)) continue
             const nombre = p.displayName?.text?.toLowerCase() || ''
-            if (nombresClientes.some(n => n && nombre && n.includes(nombre.slice(0, 10)))) continue
+            const esCliente = nombresClientes.some(n => n && nombre && n.includes(nombre.slice(0, 10)))
             seen.add(p.id)
-            resultadosTodos.push({ ...p, tier })
+            resultadosTodos.push({ ...p, tier, esCliente })
           }
         } catch { /* ignorar errores por query */ }
       }
@@ -473,22 +499,25 @@ function ProspectarZona({ clientes }) {
           <Map defaultCenter={centroMapa} defaultZoom={12} mapId="bichover-prospectar" key={lugarSelec?.nombre || ''}>
             {resultados.map((r, i) => {
               if (!r.location) return null
-              const cfg   = TIER_CONFIG[r.tier]
-              const enRuta = ruta.find(p => p.id === r.id)
-              const orden  = enRuta ? ruta.indexOf(enRuta) + 1 : null
+              const cfg      = TIER_CONFIG[r.tier]
+              const enRuta   = ruta.find(p => p.id === r.id)
+              const orden    = enRuta ? ruta.indexOf(enRuta) + 1 : null
+              const prospecto = prospectos[r.id]
+              const estConfig = prospecto ? ESTADOS_PROSPECTO.find(e => e.value === prospecto.estado) : null
+              let pinBg = '#94a3b8', pinBorder = '#64748b', pinGlyph = cfg.glyph
+              if (enRuta)       { pinBg = cfg.color; pinBorder = cfg.color }
+              if (r.esCliente)  { pinBg = '#10b981'; pinBorder = '#059669'; pinGlyph = '✓' }
+              if (estConfig)    { pinBg = estConfig.color; pinBorder = estConfig.color }
               return (
                 <AdvancedMarker
                   key={r.id}
                   position={{ lat: r.location.latitude, lng: r.location.longitude }}
                   onClick={() => setSelectedRes(r)}
                 >
-                  <Pin
-                    background={enRuta ? cfg.color : '#94a3b8'}
-                    glyphColor="#fff"
-                    borderColor={enRuta ? cfg.color : '#64748b'}
-                  >
-                    {orden ? <span style={{ fontSize: 11, fontWeight: 900 }}>{orden}</span>
-                           : <span style={{ fontSize: 11 }}>{cfg.glyph}</span>}
+                  <Pin background={pinBg} glyphColor="#fff" borderColor={pinBorder}>
+                    {orden
+                      ? <span style={{ fontSize: 11, fontWeight: 900 }}>{orden}</span>
+                      : <span style={{ fontSize: 11 }}>{pinGlyph}</span>}
                   </Pin>
                 </AdvancedMarker>
               )
@@ -498,22 +527,35 @@ function ProspectarZona({ clientes }) {
                 position={{ lat: selectedRes.location.latitude, lng: selectedRes.location.longitude }}
                 onCloseClick={() => setSelectedRes(null)}
               >
-                <div style={{ fontFamily: 'Outfit, sans-serif', minWidth: 180, padding: 4 }}>
+                <div style={{ fontFamily: 'Outfit, sans-serif', minWidth: 190, padding: 4 }}>
                   <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>
                     {selectedRes.displayName?.text}
                   </div>
-                  <TierBadge tier={selectedRes.tier} />
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{selectedRes.formattedAddress}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                    <TierBadge tier={selectedRes.tier} />
+                    {selectedRes.esCliente && (
+                      <span style={{ background: '#10b981', color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>✓ Cliente</span>
+                    )}
+                    {(() => { const p = prospectos[selectedRes.id]; const e = p && ESTADOS_PROSPECTO.find(x => x.value === p.estado); return e ? <span style={{ background: e.color, color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{e.label}</span> : null })()}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>{selectedRes.formattedAddress}</div>
                   {selectedRes.nationalPhoneNumber && (
                     <div style={{ fontSize: 12, color: '#64748b' }}>📞 {selectedRes.nationalPhoneNumber}</div>
+                  )}
+                  {prospectos[selectedRes.id]?.notas && (
+                    <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>{prospectos[selectedRes.id].notas}</div>
                   )}
                   <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                     <button style={{ background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                       onClick={() => { agregarARuta(selectedRes); setSelectedRes(null) }}>➕ Ruta</button>
-                    <button style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                      onClick={() => { setModalCliente(selectedRes); setSelectedRes(null) }}>💾 Nuevo cliente</button>
-                    <button style={{ background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                      onClick={() => { setModalVincular(selectedRes); setSelectedRes(null) }}>🔗 Vincular existente</button>
+                    <button style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                      onClick={() => { setModalVisita(selectedRes); setSelectedRes(null) }}>📝 Visita</button>
+                    {!selectedRes.esCliente && <>
+                      <button style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                        onClick={() => { setModalCliente(selectedRes); setSelectedRes(null) }}>💾 Nuevo</button>
+                      <button style={{ background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                        onClick={() => { setModalVincular(selectedRes); setSelectedRes(null) }}>🔗 Vincular</button>
+                    </>}
                   </div>
                 </div>
               </InfoWindow>
@@ -548,16 +590,33 @@ function ProspectarZona({ clientes }) {
             {resultados.length} negocios encontrados
           </div>
           {resultados.map(r => {
-            const cfg    = TIER_CONFIG[r.tier]
-            const enRuta = !!ruta.find(p => p.id === r.id)
+            const cfg       = TIER_CONFIG[r.tier]
+            const enRuta    = !!ruta.find(p => p.id === r.id)
+            const prospecto = prospectos[r.id]
+            const estConfig = prospecto ? ESTADOS_PROSPECTO.find(e => e.value === prospecto.estado) : null
+            const borderLeft = r.esCliente ? '4px solid #10b981' : estConfig ? `4px solid ${estConfig.color}` : '4px solid transparent'
             return (
-              <div key={r.id} className="list-item" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
-                <div style={{ fontSize: 20 }}>{cfg.glyph}</div>
+              <div key={r.id} className="list-item" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'flex-start', borderLeft, borderRadius: 10, paddingLeft: 10 }}>
+                <div style={{ fontSize: 20 }}>{r.esCliente ? '✅' : cfg.glyph}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="fw-700" style={{ fontSize: 14 }}>{r.displayName?.text}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                    <span className="fw-700" style={{ fontSize: 14 }}>{r.displayName?.text}</span>
+                    {r.esCliente && (
+                      <span style={{ background: '#10b981', color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>✓ Cliente</span>
+                    )}
+                    {estConfig && (
+                      <span style={{ background: estConfig.color, color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{estConfig.label}</span>
+                    )}
+                  </div>
                   <div className="text-muted" style={{ fontSize: 12 }}>{r.formattedAddress}</div>
                   {r.nationalPhoneNumber && (
                     <div className="text-muted" style={{ fontSize: 12 }}>📞 {r.nationalPhoneNumber}</div>
+                  )}
+                  {prospecto?.notas && (
+                    <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>"{prospecto.notas}"</div>
+                  )}
+                  {prospecto?.fecha && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Visitado: {prospecto.fecha}</div>
                   )}
                   <div style={{ marginTop: 4 }}><TierBadge tier={r.tier} /></div>
                 </div>
@@ -566,14 +625,22 @@ function ProspectarZona({ clientes }) {
                     onClick={() => enRuta ? quitarDeRuta(r.id) : agregarARuta(r)}>
                     {enRuta ? '✓ En ruta' : '➕ Ruta'}
                   </button>
-                  <button className="btn btn-success btn-sm"
-                    onClick={() => setModalCliente(r)}>
-                    💾 Nuevo
+                  <button className="btn btn-sm"
+                    style={{ background: estConfig ? estConfig.color + '22' : '#fef9e7', color: estConfig ? estConfig.color : '#92400e', border: `1px solid ${estConfig ? estConfig.color : '#fcd34d'}`, fontWeight: 700 }}
+                    onClick={() => setModalVisita(r)}>
+                    {prospecto ? '📝 Actualizar' : '📝 Visita'}
                   </button>
-                  <button className="btn btn-sm" style={{ background: '#f3f0ff', color: 'var(--purple)', border: '1px solid var(--purple)', fontWeight: 700 }}
-                    onClick={() => setModalVincular(r)}>
-                    🔗 Vincular
-                  </button>
+                  {!r.esCliente && (
+                    <button className="btn btn-success btn-sm" onClick={() => setModalCliente(r)}>
+                      💾 Nuevo
+                    </button>
+                  )}
+                  {!r.esCliente && (
+                    <button className="btn btn-sm" style={{ background: '#f3f0ff', color: 'var(--purple)', border: '1px solid var(--purple)', fontWeight: 700 }}
+                      onClick={() => setModalVincular(r)}>
+                      🔗 Vincular
+                    </button>
+                  )}
                 </div>
               </div>
             )
@@ -661,13 +728,94 @@ function ProspectarZona({ clientes }) {
         </div>
       )}
 
-      {/* Modal guardar como cliente */}
+      {modalVisita && (
+        <MarcarVisitaModal negocio={modalVisita} existente={prospectos[modalVisita.id] || null} onClose={() => setModalVisita(null)} />
+      )}
       {modalCliente && (
         <GuardarClienteModal negocio={modalCliente} onClose={() => setModalCliente(null)} />
       )}
       {modalVincular && (
         <VincularClienteModal negocio={modalVincular} clientes={clientes} onClose={() => setModalVincular(null)} />
       )}
+    </div>
+  )
+}
+
+function MarcarVisitaModal({ negocio, existente, onClose }) {
+  const [estado, setEstado] = useState(existente?.estado || '')
+  const [notas, setNotas]   = useState(existente?.notas  || '')
+  const [loading, setLoading] = useState(false)
+
+  async function guardar(e) {
+    e.preventDefault()
+    if (!estado) return
+    setLoading(true)
+    const hoyStr = new Date().toLocaleDateString('es-AR')
+    await set(ref(db, `prospectos/${negocio.id}`), {
+      nombre:    negocio.displayName?.text || '',
+      direccion: negocio.formattedAddress  || '',
+      lat:       negocio.location?.latitude  ?? null,
+      lng:       negocio.location?.longitude ?? null,
+      estado, notas,
+      fecha:     existente?.fecha || hoyStr,
+      fechaActualizacion: hoyStr,
+      timestamp: Date.now(),
+    })
+    setLoading(false)
+    onClose()
+  }
+
+  async function quitar() {
+    await remove(ref(db, `prospectos/${negocio.id}`))
+    onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">📝 {existente ? 'Actualizar visita' : 'Marcar visita'}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', marginBottom: 14 }}>
+          {negocio.displayName?.text}
+        </div>
+        <form onSubmit={guardar}>
+          <div className="form-group">
+            <label className="form-label">Resultado de la visita</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {ESTADOS_PROSPECTO.map(est => (
+                <label key={est.value} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                  padding: '10px 12px', borderRadius: 8,
+                  border: `2px solid ${estado === est.value ? est.color : 'var(--border)'}`,
+                  background: estado === est.value ? est.color + '18' : 'var(--bg)',
+                  transition: 'all .15s',
+                }}>
+                  <input type="radio" name="estado" value={est.value}
+                    checked={estado === est.value} onChange={() => setEstado(est.value)}
+                    style={{ accentColor: est.color, width: 16, height: 16 }} />
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{est.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Notas (opcional)</label>
+            <textarea className="form-input" rows={3} style={{ resize: 'vertical', fontFamily: 'Outfit, sans-serif' }}
+              placeholder="Ej: Hablar con el dueño la semana que viene..."
+              value={notas} onChange={e => setNotas(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" type="submit" disabled={loading || !estado} style={{ flex: 1 }}>
+              {loading ? 'Guardando...' : '💾 Guardar'}
+            </button>
+            {existente && (
+              <button className="btn btn-danger btn-sm" type="button" onClick={quitar}>
+                🗑 Quitar
+              </button>
+            )}
+            <button className="btn btn-ghost" type="button" onClick={onClose}>Cancelar</button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ref, onValue, update, push as fbPush } from 'firebase/database'
+import { ref, onValue, update, push as fbPush, remove } from 'firebase/database'
 import { db } from '../firebase.js'
 import {
   APIProvider,
@@ -245,10 +245,13 @@ function ProspectarZona({ clientes }) {
   const [resultados, setResultados] = useState([])
   const [buscando, setBuscando]     = useState(false)
   const [error, setError]           = useState('')
-  const [ruta, setRuta]             = useState([])
+  const [ruta, setRuta]               = useState([])
   const [selectedRes, setSelectedRes]   = useState(null)
   const [modalCliente, setModalCliente] = useState(null)
   const [modalVincular, setModalVincular] = useState(null)
+  const [nombreRuta, setNombreRuta]   = useState('')
+  const [guardandoRuta, setGuardandoRuta] = useState(false)
+  const [rutaGuardadaMsg, setRutaGuardadaMsg] = useState('')
 
   function toggleTierAct(t) {
     setTiersAct(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])
@@ -513,6 +516,30 @@ function ProspectarZona({ clientes }) {
             </div>
           </div>
 
+          {/* Guardar ruta con nombre */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, marginTop: 4 }}>
+            <input
+              style={{ flex: 1, background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.2)', borderRadius: 8, padding: '7px 12px', color: '#fff', fontSize: 13, fontFamily: 'Outfit, sans-serif' }}
+              placeholder="Nombre de la ruta..."
+              value={nombreRuta}
+              onChange={e => setNombreRuta(e.target.value)}
+            />
+            <button className="btn btn-sm" style={{ background: 'var(--green)', color: '#fff', border: 'none' }}
+              disabled={!nombreRuta.trim() || guardandoRuta}
+              onClick={async () => {
+                setGuardandoRuta(true)
+                const hoyStr = new Date().toLocaleDateString('es-AR')
+                await fbPush(ref(db, 'rutas'), { nombre: nombreRuta.trim(), paradas: ruta, timestamp: Date.now(), fechaGuardado: hoyStr })
+                setNombreRuta('')
+                setRutaGuardadaMsg('✅ Ruta guardada')
+                setTimeout(() => setRutaGuardadaMsg(''), 3000)
+                setGuardandoRuta(false)
+              }}>
+              {guardandoRuta ? '...' : '💾 Guardar'}
+            </button>
+          </div>
+          {rutaGuardadaMsg && <div style={{ color: '#6ee7b7', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{rutaGuardadaMsg}</div>}
+
           {ruta.map((p, i) => {
             const cfg = TIER_CONFIG[p.tier]
             return (
@@ -705,6 +732,92 @@ function VincularClienteModal({ negocio, clientes, onClose }) {
   )
 }
 
+// ── Rutas Guardadas ───────────────────────────────────────────────────────────
+function RutasGuardadas() {
+  const [rutas, setRutas]       = useState({})
+  const [confirm, setConfirm]   = useState(null)
+
+  useEffect(() => {
+    return onValue(ref(db, 'rutas'), s => setRutas(s.exists() ? s.val() : {}))
+  }, [])
+
+  async function eliminar(id) {
+    await remove(ref(db, `rutas/${id}`))
+    setConfirm(null)
+  }
+
+  function abrirEnMaps(paradas) {
+    const stops = paradas.map(p => encodeURIComponent(p.formattedAddress || `${p.location?.latitude},${p.location?.longitude}`))
+    window.open(`https://www.google.com/maps/dir/${stops.join('/')}`, '_blank')
+  }
+
+  const lista = Object.entries(rutas)
+    .map(([id, r]) => ({ id, ...r }))
+    .sort((a, b) => b.timestamp - a.timestamp)
+
+  if (lista.length === 0) {
+    return (
+      <div className="empty-state card">
+        <div className="empty-icon">🗺️</div>
+        <p>No hay rutas guardadas todavía</p>
+        <p style={{ fontSize: 13, marginTop: 6 }}>Armá una ruta en "Prospectar Zona" y guardala con un nombre</p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {lista.map(r => (
+        <div key={r.id} className="card mb-16">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+            <div>
+              <div className="fw-800" style={{ fontSize: 17 }}>🗺️ {r.nombre}</div>
+              <div className="text-muted" style={{ fontSize: 12 }}>
+                {Array.isArray(r.paradas) ? r.paradas.length : 0} paradas · {r.fechaGuardado || ''}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary btn-sm" onClick={() => abrirEnMaps(r.paradas || [])}>
+                📱 Abrir en Maps
+              </button>
+              <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>🗑</button>
+            </div>
+          </div>
+
+          {Array.isArray(r.paradas) && r.paradas.map((p, i) => {
+            const cfg = TIER_CONFIG[p.tier] || TIER_CONFIG[1]
+            return (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: cfg.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>
+                  {i + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="fw-600" style={{ fontSize: 13 }}>{p.displayName?.text || p.nombre}</div>
+                  <div className="text-muted" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.formattedAddress}</div>
+                </div>
+                <span className={`tier-badge tier-${p.tier || 1}`} style={{ fontSize: 10 }}>{cfg.label}</span>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+
+      {confirm && (
+        <div className="modal-overlay" onClick={() => setConfirm(null)}>
+          <div className="modal" style={{ maxWidth: 340 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-title" style={{ fontSize: 16 }}>⚠️ Eliminar ruta</div>
+            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 20 }}>¿Eliminás esta ruta guardada?</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => eliminar(confirm)}>Eliminar</button>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setConfirm(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Componente principal Mapa ─────────────────────────────────────────────────
 export default function Mapa() {
   const [tab, setTab]           = useState('clientes')
@@ -722,16 +835,16 @@ export default function Mapa() {
 
       <div className="tabs mb-16">
         <button className={`tab-btn ${tab === 'clientes' ? 'active' : ''}`}
-          onClick={() => setTab('clientes')}>
-          👥 Mis Clientes
-        </button>
+          onClick={() => setTab('clientes')}>👥 Mis Clientes</button>
         <button className={`tab-btn ${tab === 'prospectar' ? 'active' : ''}`}
-          onClick={() => setTab('prospectar')}>
-          🔍 Prospectar Zona
-        </button>
+          onClick={() => setTab('prospectar')}>🔍 Prospectar Zona</button>
+        <button className={`tab-btn ${tab === 'rutas' ? 'active' : ''}`}
+          onClick={() => setTab('rutas')}>📋 Rutas Guardadas</button>
       </div>
 
-      {MAPS_KEY ? (
+      {tab === 'rutas' ? (
+        <RutasGuardadas />
+      ) : MAPS_KEY ? (
         <APIProvider apiKey={MAPS_KEY}>
           {tab === 'clientes'   && <MisClientes />}
           {tab === 'prospectar' && <ProspectarZona clientes={clientes} />}

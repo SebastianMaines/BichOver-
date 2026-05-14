@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ref, onValue, push, update, set, remove } from 'firebase/database'
 import { db } from '../firebase.js'
+import ClienteSelector from './ClienteSelector.jsx'
 
 function hoy() {
   const d = new Date()
@@ -133,13 +134,7 @@ export default function Ventas({ usuario }) {
           <form onSubmit={handleGuardar}>
             <div className="form-group">
               <label className="form-label">Cliente</label>
-              <select className="form-select" value={clienteKey}
-                onChange={e => setClienteKey(e.target.value)} required>
-                <option value="">— Seleccionar cliente —</option>
-                {clientesOrdenados.map(c => (
-                  <option key={c.id} value={c.id}>{c.razonSocial} — {c.localidad}</option>
-                ))}
-              </select>
+              <ClienteSelector clientes={clientes} value={clienteKey} onChange={setClienteKey} required />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">

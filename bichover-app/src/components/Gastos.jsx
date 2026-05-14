@@ -74,7 +74,7 @@ export default function Gastos({ usuario }) {
   const lista = Object.entries(gastos)
     .map(([id, g]) => ({ id, ...g }))
     .filter(g => filtroUser === 'Todos' || g.usuario === filtroUser)
-    .filter(g => filtroTipo === 'Todos' || g.tipo === filtroTipo)
+    .filter(g => filtroTipo === 'Todos' || (g.tipo || '').toLowerCase() === filtroTipo.toLowerCase())
     .sort((a, b) => b.timestamp - a.timestamp)
 
   return (

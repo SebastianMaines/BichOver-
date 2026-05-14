@@ -351,7 +351,20 @@ function ProspectarZona({ clientes }) {
 
     const seen = new Set()
     const resultadosTodos = []
-    const nombresClientes = Object.values(clientes).map(c => c.razonSocial?.toLowerCase())
+    const coordsClientes = Object.values(clientes).filter(c => c.lat && c.lng).map(c => ({ lat: c.lat, lng: c.lng }))
+    const nombresClientes = Object.values(clientes).map(c => (c.razonSocial || '').toLowerCase().trim()).filter(n => n.length >= 4)
+
+    function esClienteCoincidente(place) {
+      const nombre = (place.displayName?.text || '').toLowerCase().trim()
+      // Coincidencia por nombre: uno contiene al otro completamente
+      if (nombresClientes.some(nc => nombre.includes(nc) || nc.includes(nombre))) return true
+      // Coincidencia por coordenadas GPS (menos de 100m de distancia)
+      if (place.location) {
+        const { latitude: pLat, longitude: pLng } = place.location
+        if (coordsClientes.some(c => Math.abs(c.lat - pLat) < 0.001 && Math.abs(c.lng - pLng) < 0.001)) return true
+      }
+      return false
+    }
 
     for (const tier of tiersAct) {
       for (const queryTpl of QUERIES_POR_TIER[tier]) {
@@ -371,8 +384,7 @@ function ProspectarZona({ clientes }) {
           for (const p of places) {
             if (p.businessStatus !== 'OPERATIONAL') continue
             if (seen.has(p.id)) continue
-            const nombre = p.displayName?.text?.toLowerCase() || ''
-            const esCliente = nombresClientes.some(n => n && nombre && n.includes(nombre.slice(0, 10)))
+            const esCliente = esClienteCoincidente(p)
             seen.add(p.id)
             resultadosTodos.push({ ...p, tier, esCliente })
           }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ref, onValue, push, update } from 'firebase/database'
+import { ref, onValue, push, update, set } from 'firebase/database'
 import { db } from '../firebase.js'
 import ClienteSelector from './ClienteSelector.jsx'
 
@@ -26,9 +26,12 @@ function QuickSaleModal({ usuario, clientes, usuarios, onClose }) {
   const total       = cantNum * precioNum
   const stockPost   = stockActual - cantNum
 
-  const clientesOrdenados = Object.entries(clientes)
-    .map(([id, c]) => ({ id, ...c }))
-    .sort((a, b) => a.razonSocial?.localeCompare(b.razonSocial))
+  // Auto-fill precio from precioHabitual when client changes
+  useEffect(() => {
+    if (clienteKey && clientes[clienteKey]?.precioHabitual != null) {
+      setPrecio(String(clientes[clienteKey].precioHabitual))
+    }
+  }, [clienteKey])
 
   async function guardar(e) {
     e.preventDefault()
@@ -45,6 +48,7 @@ function QuickSaleModal({ usuario, clientes, usuarios, onClose }) {
       await update(ref(db, `clientes/${clienteKey}`), {
         cantidadFrascos: (cliente.cantidadFrascos || 0) + cantNum,
         fechaUltimaCompra: hoy(),
+        precioHabitual: precioNum,
       })
       await update(ref(db, `usuarios/${usuario}`), { stock: stockActual - cantNum })
       onClose()
@@ -178,15 +182,25 @@ export default function Dashboard({ usuario }) {
   const [gastos, setGastos]   = useState([])
   const [usuarios, setUsuarios] = useState({})
   const [clientes, setClientes] = useState({})
+  const [componentes, setComponentes] = useState({})
+  const [stockMinimos, setStockMinimos] = useState({})
+  const [objetivoMensual, setObjetivoMensual] = useState(null)
   const [showSale, setShowSale]   = useState(false)
   const [showExpense, setShowExpense] = useState(false)
+  const [alertasDismissed, setAlertasDismissed] = useState(false)
+  const [editandoObjetivo, setEditandoObjetivo] = useState(false)
+  const [nuevoObjetivo, setNuevoObjetivo] = useState('')
+  const [savingObjetivo, setSavingObjetivo] = useState(false)
 
   useEffect(() => {
     const unV = onValue(ref(db, 'ventas'),   s => setVentas(s.exists()   ? Object.values(s.val()) : []))
     const unG = onValue(ref(db, 'gastos'),   s => setGastos(s.exists()   ? Object.values(s.val()) : []))
     const unU = onValue(ref(db, 'usuarios'), s => setUsuarios(s.exists() ? s.val() : {}))
     const unC = onValue(ref(db, 'clientes'), s => setClientes(s.exists() ? s.val() : {}))
-    return () => { unV(); unG(); unU(); unC() }
+    const unComp = onValue(ref(db, 'componentes'), s => setComponentes(s.exists() ? s.val() : {}))
+    const unMin = onValue(ref(db, 'configuracion/stockMinimos'), s => setStockMinimos(s.exists() ? s.val() : {}))
+    const unObj = onValue(ref(db, 'configuracion/objetivoMensual'), s => setObjetivoMensual(s.exists() ? s.val() : null))
+    return () => { unV(); unG(); unU(); unC(); unComp(); unMin(); unObj() }
   }, [])
 
   const desde = startOfPeriod(period)
@@ -201,9 +215,51 @@ export default function Dashboard({ usuario }) {
   const stockSeba  = usuarios.Seba?.stock ?? 0
   const stockJuan  = usuarios.Juan?.stock ?? 0
   const stockTotal = stockSeba + stockJuan
+  const stockDR    = componentes.DR ?? 0
+  const stockAC    = componentes.AC ?? 0
+  const frascosVacios = componentes.vacios ?? 0
+
+  // Stock alerts
+  const alertas = []
+  if (stockMinimos.seba != null && stockSeba < stockMinimos.seba) alertas.push(`Frascos Seba: ${stockSeba} (mín. ${stockMinimos.seba})`)
+  if (stockMinimos.juan != null && stockJuan < stockMinimos.juan) alertas.push(`Frascos Juan: ${stockJuan} (mín. ${stockMinimos.juan})`)
+  if (stockMinimos.DR != null && stockDR < stockMinimos.DR) alertas.push(`DR: ${stockDR} (mín. ${stockMinimos.DR})`)
+  if (stockMinimos.AC != null && stockAC < stockMinimos.AC) alertas.push(`AC: ${stockAC} (mín. ${stockMinimos.AC})`)
+  if (stockMinimos.vacios != null && frascosVacios < stockMinimos.vacios) alertas.push(`Vacíos: ${frascosVacios} (mín. ${stockMinimos.vacios})`)
+
+  // Objetivo mensual: current month ventas
+  const now = new Date()
+  const ventasMesActual = ventas.filter(v => {
+    const d = new Date(v.timestamp)
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+  })
+  const facturacionMes = ventasMesActual.reduce((a, v) => a + v.cantidadFrascos * v.precioVenta, 0)
+  const porcentajeObjetivo = objetivoMensual ? Math.min(100, (facturacionMes / objetivoMensual) * 100) : 0
+
+  async function guardarObjetivo() {
+    const num = parseFloat(nuevoObjetivo)
+    if (!num || num <= 0) return
+    setSavingObjetivo(true)
+    try {
+      await set(ref(db, 'configuracion/objetivoMensual'), num)
+      setEditandoObjetivo(false)
+      setNuevoObjetivo('')
+    } finally { setSavingObjetivo(false) }
+  }
 
   return (
     <div>
+      {/* Stock alert banner */}
+      {alertas.length > 0 && !alertasDismissed && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <span style={{ fontWeight: 800, color: '#92400e' }}>⚠️ Stock bajo: </span>
+            <span style={{ fontSize: 13, color: '#92400e' }}>{alertas.map(a => a.split(':')[0]).join(', ')}</span>
+          </div>
+          <button onClick={() => setAlertasDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#92400e', padding: '0 4px' }}>✕</button>
+        </div>
+      )}
+
       <div className="section-header">
         <h1 className="section-title">📊 Dashboard</h1>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -240,6 +296,50 @@ export default function Dashboard({ usuario }) {
           <div className="metric-value text-purple">{clientesUnicos}</div>
           <div className="metric-sub">con al menos 1 venta</div>
         </div>
+      </div>
+
+      {/* Objetivo mensual card */}
+      <div className="card mt-20">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span className="fw-800" style={{ fontSize: 16 }}>🎯 Objetivo del mes</span>
+          {objetivoMensual && !editandoObjetivo && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { setEditandoObjetivo(true); setNuevoObjetivo(String(objetivoMensual)) }}>
+              ✏️ Editar
+            </button>
+          )}
+        </div>
+        {editandoObjetivo || !objetivoMensual ? (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input className="form-input" type="number" min="1" step="1" placeholder="Objetivo en $"
+              value={nuevoObjetivo} onChange={e => setNuevoObjetivo(e.target.value)}
+              style={{ maxWidth: 200 }} />
+            <button className="btn btn-primary btn-sm" onClick={guardarObjetivo} disabled={savingObjetivo}>
+              {savingObjetivo ? 'Guardando...' : '💾 Guardar'}
+            </button>
+            {editandoObjetivo && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setEditandoObjetivo(false)}>Cancelar</button>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+              <span className="fw-700 text-green">{fmt(facturacionMes)}</span>
+              <span className="text-muted">de {fmt(objetivoMensual)}</span>
+            </div>
+            <div style={{ background: 'var(--bg)', borderRadius: 99, height: 10, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${porcentajeObjetivo}%`,
+                background: porcentajeObjetivo >= 100 ? 'var(--green)' : porcentajeObjetivo >= 60 ? 'var(--amber)' : 'var(--blue)',
+                borderRadius: 99,
+                transition: 'width 0.4s ease',
+              }} />
+            </div>
+            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>
+              {porcentajeObjetivo.toFixed(1)}% completado
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card mt-20">

@@ -61,6 +61,13 @@ export default function Ventas({ usuario }) {
     .map(([id, c]) => ({ id, ...c }))
     .sort((a, b) => a.razonSocial?.localeCompare(b.razonSocial))
 
+  // Auto-fill precio from precioHabitual when client changes
+  useEffect(() => {
+    if (clienteKey && clientes[clienteKey]?.precioHabitual != null) {
+      setPrecio(String(clientes[clienteKey].precioHabitual))
+    }
+  }, [clienteKey])
+
   async function handleGuardar(e) {
     e.preventDefault()
     if (!clienteKey) return
@@ -76,6 +83,7 @@ export default function Ventas({ usuario }) {
       await update(ref(db, `clientes/${clienteKey}`), {
         cantidadFrascos: (cliente.cantidadFrascos || 0) + cantNum,
         fechaUltimaCompra: hoy(),
+        precioHabitual: precioNum,
       })
       await update(ref(db, `usuarios/${usuario}`), { stock: stockActual - cantNum })
       setCantidad(''); setPrecio(''); setClienteKey(''); setCanal('Presencial')

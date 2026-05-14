@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { ref, onValue } from 'firebase/database'
+import { db } from './firebase.js'
 import Login from './components/Login.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Gastos from './components/Gastos.jsx'
@@ -22,14 +24,226 @@ const NAV_ITEMS = [
   { key: 'exportar',    label: 'Exportar',      icon: '📤' },
 ]
 
+function BusquedaGlobal({ clientes, ventas, gastos, onNavTo, onClose }) {
+  const [query, setQuery] = useState('')
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    function onKey(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const q = query.toLowerCase().trim()
+
+  const resultadosClientes = q
+    ? Object.entries(clientes)
+        .map(([id, c]) => ({ id, ...c }))
+        .filter(c =>
+          c.razonSocial?.toLowerCase().includes(q) ||
+          c.localidad?.toLowerCase().includes(q)
+        )
+        .slice(0, 6)
+    : []
+
+  const resultadosVentas = q
+    ? Object.entries(ventas)
+        .map(([id, v]) => ({ id, ...v }))
+        .filter(v => v.cliente?.toLowerCase().includes(q))
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 6)
+    : []
+
+  const resultadosGastos = q
+    ? Object.entries(gastos)
+        .map(([id, g]) => ({ id, ...g }))
+        .filter(g =>
+          g.razon?.toLowerCase().includes(q) ||
+          g.tipo?.toLowerCase().includes(q)
+        )
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 6)
+    : []
+
+  const hayResultados = resultadosClientes.length > 0 || resultadosVentas.length > 0 || resultadosGastos.length > 0
+
+  function handleClick(seccion) {
+    onNavTo(seccion)
+    onClose()
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '60px 16px 40px',
+        overflowY: 'auto',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{ width: '100%', maxWidth: 600 }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ position: 'relative', marginBottom: 20 }}>
+          <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 18 }}>🔍</span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Buscar clientes, ventas, gastos..."
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '14px 16px 14px 46px',
+              borderRadius: 14, border: 'none',
+              fontSize: 16, fontWeight: 500,
+              background: '#fff', color: 'var(--navy)',
+              outline: 'none',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+            }}
+          />
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 18, color: 'var(--muted)',
+            }}
+          >✕</button>
+        </div>
+
+        {q && !hayResultados && (
+          <div style={{ background: '#fff', borderRadius: 14, padding: '20px', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
+            Sin resultados para "{query}"
+          </div>
+        )}
+
+        {resultadosClientes.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 14, padding: '12px', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, padding: '4px 8px 8px', textTransform: 'uppercase' }}>
+              👥 Clientes
+            </div>
+            {resultadosClientes.map(c => (
+              <button
+                key={c.id}
+                onClick={() => handleClick('clientes')}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: '10px 12px', borderRadius: 10,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{c.razonSocial}</div>
+                {c.localidad && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>📍 {c.localidad}</div>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {resultadosVentas.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 14, padding: '12px', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, padding: '4px 8px 8px', textTransform: 'uppercase' }}>
+              🛒 Ventas
+            </div>
+            {resultadosVentas.map(v => (
+              <button
+                key={v.id}
+                onClick={() => handleClick('ventas')}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: '10px 12px', borderRadius: 10,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{v.cliente}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  {v.fechaVenta} · {v.cantidadFrascos} frascos · ${Math.round(v.cantidadFrascos * v.precioVenta).toLocaleString('es-AR')}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {resultadosGastos.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 14, padding: '12px', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, padding: '4px 8px 8px', textTransform: 'uppercase' }}>
+              💸 Gastos
+            </div>
+            {resultadosGastos.map(g => (
+              <button
+                key={g.id}
+                onClick={() => handleClick('gastos')}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: '10px 12px', borderRadius: 10,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{g.razon || g.tipo}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  {g.tipo} · {g.fecha} · ${Math.round(g.monto).toLocaleString('es-AR')}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!q && (
+          <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 14, padding: '20px', textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>
+            Escribí para buscar en clientes, ventas y gastos
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [usuario, setUsuario] = useState(null)
   const [seccion, setSeccion] = useState('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showBusqueda, setShowBusqueda] = useState(false)
+  const [clientes, setClientes] = useState({})
+  const [ventas, setVentas] = useState({})
+  const [gastos, setGastos] = useState({})
 
   useEffect(() => {
     const u = sessionStorage.getItem('bichover_usuario')
     if (u) setUsuario(u)
+  }, [])
+
+  useEffect(() => {
+    if (!usuario) return
+    const unC = onValue(ref(db, 'clientes'), s => setClientes(s.exists() ? s.val() : {}))
+    const unV = onValue(ref(db, 'ventas'),   s => setVentas(s.exists()   ? s.val() : {}))
+    const unG = onValue(ref(db, 'gastos'),   s => setGastos(s.exists()   ? s.val() : {}))
+    return () => { unC(); unV(); unG() }
+  }, [usuario])
+
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowBusqueda(v => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   function handleLogin(u) {
@@ -73,6 +287,14 @@ export default function App() {
           </div>
 
           <div className="navbar-right">
+            <button
+              className="btn-salir"
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', marginRight: 4 }}
+              onClick={() => setShowBusqueda(true)}
+              title="Buscar (Ctrl+K)"
+            >
+              🔍
+            </button>
             <span className="navbar-user">
               {usuario === 'Seba' ? '🔵' : '🟣'} {usuario}
             </span>
@@ -99,6 +321,16 @@ export default function App() {
         {seccion === 'mapa'         && <Mapa usuario={usuario} />}
         {seccion === 'exportar'     && <Exportar />}
       </main>
+
+      {showBusqueda && (
+        <BusquedaGlobal
+          clientes={clientes}
+          ventas={ventas}
+          gastos={gastos}
+          onNavTo={navTo}
+          onClose={() => setShowBusqueda(false)}
+        />
+      )}
     </div>
   )
 }

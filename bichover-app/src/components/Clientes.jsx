@@ -46,33 +46,58 @@ function hoy() {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
 }
 
+function parseFecha(fecha) {
+  if (!fecha) return null
+  const [d, m, y] = fecha.split('/')
+  return new Date(y, m - 1, d)
+}
+
+function diasDesde(fecha) {
+  const f = parseFecha(fecha)
+  if (!f) return null
+  const diff = Date.now() - f.getTime()
+  return Math.floor(diff / (1000 * 60 * 60 * 24))
+}
+
 export default function Clientes({ usuario }) {
   const [clientes, setClientes]     = useState({})
+  const [ventas, setVentas]         = useState({})
   const [showForm, setShowForm]     = useState(false)
   const [editId, setEditId]         = useState(null)
   const [busqueda, setBusqueda]     = useState('')
   const [filtroLoc, setFiltroLoc]   = useState('')
   const [filtroTier, setFiltroTier] = useState([])
+  const [filtroInactivos, setFiltroInactivos] = useState(0)
   const [geocoding, setGeocoding]   = useState(false)
   const [loading, setLoading]       = useState(false)
+  const [historialAbierto, setHistorialAbierto] = useState(null)
 
   const [form, setForm] = useState({
-    razonSocial: '', localidad: '', direccion: '', telefono: '', tier: 1
+    razonSocial: '', localidad: '', direccion: '', telefono: '', tier: 1, precioHabitual: ''
   })
 
   useEffect(() => {
-    return onValue(ref(db, 'clientes'), s => setClientes(s.exists() ? s.val() : {}))
+    const unClientes = onValue(ref(db, 'clientes'), s => setClientes(s.exists() ? s.val() : {}))
+    const unVentas   = onValue(ref(db, 'ventas'),   s => setVentas(s.exists()   ? s.val() : {}))
+    return () => { unClientes(); unVentas() }
   }, [])
 
   function openNew() {
     setEditId(null)
-    setForm({ razonSocial: '', localidad: '', direccion: '', telefono: '', tier: 1 })
+    setForm({ razonSocial: '', localidad: '', direccion: '', telefono: '', tier: 1, precioHabitual: '' })
     setShowForm(true)
   }
 
   function openEdit(id, c) {
     setEditId(id)
-    setForm({ razonSocial: c.razonSocial, localidad: c.localidad, direccion: c.direccion, telefono: c.telefono, tier: c.tier || 1 })
+    setForm({
+      razonSocial: c.razonSocial,
+      localidad: c.localidad,
+      direccion: c.direccion,
+      telefono: c.telefono,
+      tier: c.tier || 1,
+      precioHabitual: c.precioHabitual != null ? c.precioHabitual : '',
+    })
     setShowForm(true)
   }
 
@@ -80,18 +105,21 @@ export default function Clientes({ usuario }) {
     e.preventDefault()
     setLoading(true)
     try {
+      const precioHabitual = form.precioHabitual !== '' ? Number(form.precioHabitual) : null
       if (editId) {
-        await update(ref(db, `clientes/${editId}`), {
+        const upd = {
           razonSocial: form.razonSocial,
           localidad: form.localidad,
           direccion: form.direccion,
           telefono: form.telefono,
           tier: Number(form.tier),
-        })
+        }
+        if (precioHabitual !== null) upd.precioHabitual = precioHabitual
+        await update(ref(db, `clientes/${editId}`), upd)
       } else {
         let coords = null
         if (MAPS_KEY) coords = await geocodificar(form.localidad)
-        await push(ref(db, 'clientes'), {
+        const newCliente = {
           razonSocial: form.razonSocial,
           localidad: form.localidad,
           direccion: form.direccion,
@@ -103,7 +131,9 @@ export default function Clientes({ usuario }) {
           timestamp: Date.now(),
           lat: coords?.lat ?? null,
           lng: coords?.lng ?? null,
-        })
+        }
+        if (precioHabitual !== null) newCliente.precioHabitual = precioHabitual
+        await push(ref(db, 'clientes'), newCliente)
       }
       setShowForm(false)
     } finally {
@@ -135,6 +165,13 @@ export default function Clientes({ usuario }) {
 
   const localidades = [...new Set(Object.values(clientes).map(c => c.localidad).filter(Boolean))].sort()
 
+  function estaInactivo(c) {
+    if (filtroInactivos === 0) return false
+    if (!c.fechaUltimaCompra) return true
+    const dias = diasDesde(c.fechaUltimaCompra)
+    return dias !== null && dias >= filtroInactivos
+  }
+
   const lista = Object.entries(clientes)
     .map(([id, c]) => ({ id, ...c, tier: c.tier || 1 }))
     .filter(c => {
@@ -142,11 +179,25 @@ export default function Clientes({ usuario }) {
           !c.localidad?.toLowerCase().includes(busqueda.toLowerCase())) return false
       if (filtroLoc && c.localidad !== filtroLoc) return false
       if (filtroTier.length > 0 && !filtroTier.includes(c.tier)) return false
+      if (filtroInactivos > 0 && !estaInactivo(c)) return false
       return true
     })
     .sort((a, b) => b.timestamp - a.timestamp)
 
   const sinUbicacion = Object.entries(clientes).filter(([, c]) => !c.lat && !c.lng)
+
+  // historial modal
+  const historialCliente = historialAbierto ? clientes[historialAbierto] : null
+  const historialVentas = historialAbierto
+    ? Object.entries(ventas)
+        .map(([id, v]) => ({ id, ...v }))
+        .filter(v => v.clienteKey === historialAbierto)
+        .sort((a, b) => b.timestamp - a.timestamp)
+    : []
+
+  function countVentasCliente(id) {
+    return Object.values(ventas).filter(v => v.clienteKey === id).length
+  }
 
   return (
     <div>
@@ -181,6 +232,12 @@ export default function Clientes({ usuario }) {
                 <label className="form-label">Teléfono</label>
                 <input className="form-input" value={form.telefono}
                   onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Precio habitual ($/frasco)</label>
+                <input className="form-input" type="number" min="0" step="0.01" placeholder="Opcional"
+                  value={form.precioHabitual}
+                  onChange={e => setForm(f => ({ ...f, precioHabitual: e.target.value }))} />
               </div>
             </div>
             <div className="form-group">
@@ -231,6 +288,27 @@ export default function Clientes({ usuario }) {
             )
           })}
         </div>
+
+        {/* Filtro inactivos */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          {[
+            { val: 0, label: 'Todos' },
+            { val: 30, label: '+30 días' },
+            { val: 60, label: '+60 días' },
+            { val: 90, label: '+90 días' },
+          ].map(({ val, label }) => (
+            <button key={val}
+              onClick={() => setFiltroInactivos(val)}
+              style={{
+                padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
+                background: filtroInactivos === val ? 'var(--amber)' : 'var(--bg)',
+                color: filtroInactivos === val ? '#fff' : 'var(--muted)',
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {sinUbicacion.length > 0 && (
           <button className="btn btn-ghost btn-sm mt-8" onClick={geocodificarTodos} disabled={geocoding}>
             {geocoding ? '⏳ Geocodificando...' : `📍 Geocodificar ${sinUbicacion.length} sin ubicación`}
@@ -245,50 +323,104 @@ export default function Clientes({ usuario }) {
         </div>
       ) : (
         <div className="clients-grid">
-          {lista.map(c => (
-            <div key={c.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div className="fw-800" style={{ fontSize: 15, lineHeight: 1.3 }}>{c.razonSocial}</div>
-                <TierBadge tier={c.tier} />
-              </div>
-              <div className="text-muted" style={{ fontSize: 13 }}>
-                📍 {c.localidad}{c.telefono ? ` · 📞 ${c.telefono}` : ''}
-              </div>
-              <div style={{ fontSize: 12, color: c.lat ? 'var(--green)' : 'var(--light)' }}>
-                {c.lat ? '🗺 En el mapa' : '⚪ Sin ubicación'}
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <div style={{ flex: 1, background: '#e8f1ff', borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--blue)' }}>{c.cantidadFrascos || 0}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>frascos totales</div>
+          {lista.map(c => {
+            const dias = c.fechaUltimaCompra ? diasDesde(c.fechaUltimaCompra) : null
+            const inactivo = estaInactivo(c)
+            const nVentas = countVentasCliente(c.id)
+            return (
+              <div key={c.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div className="fw-800" style={{ fontSize: 15, lineHeight: 1.3 }}>{c.razonSocial}</div>
+                  <TierBadge tier={c.tier} />
                 </div>
-                <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>{c.fechaUltimaCompra || '—'}</div>
-                  <div style={{ fontSize: 11, color: 'var(--light)' }}>última compra</div>
+                <div className="text-muted" style={{ fontSize: 13 }}>
+                  📍 {c.localidad}{c.telefono ? ` · 📞 ${c.telefono}` : ''}
                 </div>
-              </div>
-              {(waUrl(c.telefono) || mapsUrlCliente(c)) && (
+                {c.precioHabitual != null && (
+                  <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 700 }}>
+                    💲 Precio habitual: ${Number(c.precioHabitual).toLocaleString('es-AR')}/frasco
+                  </div>
+                )}
+                <div style={{ fontSize: 12, color: c.lat ? 'var(--green)' : 'var(--light)' }}>
+                  {c.lat ? '🗺 En el mapa' : '⚪ Sin ubicación'}
+                </div>
+                {inactivo && (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: '#92400e', fontWeight: 700 }}>
+                    ⚠️ {dias !== null ? `${dias} días sin comprar` : 'Sin compras registradas'}
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  {waUrl(c.telefono) && (
-                    <a href={waUrl(c.telefono)} target="_blank" rel="noopener noreferrer"
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#25d366', color: '#fff', borderRadius: 8, padding: '7px 0', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-                      💬 WhatsApp
-                    </a>
-                  )}
-                  {mapsUrlCliente(c) && (
-                    <a href={mapsUrlCliente(c)} target="_blank" rel="noopener noreferrer"
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#4285f4', color: '#fff', borderRadius: 8, padding: '7px 0', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-                      🗺 Cómo llegar
-                    </a>
-                  )}
+                  <div style={{ flex: 1, background: '#e8f1ff', borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--blue)' }}>{c.cantidadFrascos || 0}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>frascos totales</div>
+                  </div>
+                  <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>{c.fechaUltimaCompra || '—'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--light)' }}>última compra</div>
+                  </div>
                 </div>
-              )}
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => openEdit(c.id, c)}>✏️ Editar</button>
-                <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => handleEliminar(c.id)}>🗑 Eliminar</button>
+                {(waUrl(c.telefono) || mapsUrlCliente(c)) && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    {waUrl(c.telefono) && (
+                      <a href={waUrl(c.telefono)} target="_blank" rel="noopener noreferrer"
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#25d366', color: '#fff', borderRadius: 8, padding: '7px 0', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                        💬 WhatsApp
+                      </a>
+                    )}
+                    {mapsUrlCliente(c) && (
+                      <a href={mapsUrlCliente(c)} target="_blank" rel="noopener noreferrer"
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#4285f4', color: '#fff', borderRadius: 8, padding: '7px 0', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                        🗺 Cómo llegar
+                      </a>
+                    )}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => openEdit(c.id, c)}>✏️ Editar</button>
+                  <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => handleEliminar(c.id)}>🗑 Eliminar</button>
+                </div>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setHistorialAbierto(c.id)}
+                  style={{ marginTop: 2 }}>
+                  📋 Ver historial ({nVentas})
+                </button>
               </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Modal historial */}
+      {historialAbierto && historialCliente && (
+        <div className="modal-overlay" onClick={() => setHistorialAbierto(null)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-title" style={{ fontSize: 16 }}>
+              📋 Historial — {historialCliente.razonSocial}
             </div>
-          ))}
+            {historialVentas.length === 0 ? (
+              <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin compras registradas.</p>
+            ) : (
+              <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {historialVentas.map(v => (
+                  <div key={v.id} style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{v.fechaVenta}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        {v.cantidadFrascos} frascos · ${Number(v.precioVenta).toLocaleString('es-AR')}/u · {v.usuario}
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 800, color: 'var(--green)', fontSize: 14, whiteSpace: 'nowrap' }}>
+                      ${Math.round(v.cantidadFrascos * v.precioVenta).toLocaleString('es-AR')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button className="btn btn-ghost" style={{ marginTop: 14, width: '100%' }} onClick={() => setHistorialAbierto(null)}>
+              Cerrar
+            </button>
+          </div>
         </div>
       )}
     </div>

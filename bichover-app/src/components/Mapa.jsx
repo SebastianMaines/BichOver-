@@ -13,6 +13,39 @@ import {
 const MAPS_KEY    = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 const ROSARIO_POS = { lat: -32.9468, lng: -60.6393 }
 
+function waUrl(tel) {
+  if (!tel) return null
+  const d = tel.replace(/\D/g, '')
+  if (!d) return null
+  const num = d.startsWith('54') ? d : d.startsWith('0') ? '54' + d.slice(1) : '54' + d
+  return `https://wa.me/${num}`
+}
+
+function mapsDir(lat, lng, addr) {
+  if (lat && lng) return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+  if (addr)       return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`
+  return null
+}
+
+function ContactoBtns({ tel, lat, lng, addr, small }) {
+  const wa  = waUrl(tel)
+  const dir = mapsDir(lat, lng, addr)
+  if (!wa && !dir) return null
+  const sz = small ? 11 : 13
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+      {wa  && <a href={wa}  target="_blank" rel="noopener noreferrer"
+        style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#25d366', color: '#fff', borderRadius: 6, padding: small ? '4px 8px' : '6px 12px', fontSize: sz, fontWeight: 700, textDecoration: 'none' }}>
+        💬 WhatsApp
+      </a>}
+      {dir && <a href={dir} target="_blank" rel="noopener noreferrer"
+        style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#4285f4', color: '#fff', borderRadius: 6, padding: small ? '4px 8px' : '6px 12px', fontSize: sz, fontWeight: 700, textDecoration: 'none' }}>
+        🗺 Cómo llegar
+      </a>}
+    </div>
+  )
+}
+
 const ESTADOS_PROSPECTO = [
   { value: 'interesado',    label: '⭐ Le interesó',          color: '#f59e0b' },
   { value: 'info',          label: '📧 Pidió información',    color: '#06b6d4' },
@@ -288,6 +321,7 @@ function MisClientes() {
                   {selected.fechaUltimaCompra && (
                     <div style={{ fontSize: 12, color: '#64748b' }}>🗓 {selected.fechaUltimaCompra}</div>
                   )}
+                  <ContactoBtns tel={selected.telefono} lat={selected.lat} lng={selected.lng} addr={selected.direccion} small />
                 </div>
               </InfoWindow>
             )}
@@ -706,6 +740,10 @@ function ProspectarZona({ clientes }) {
                   {prospectos[selectedRes.id]?.notas && (
                     <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>{prospectos[selectedRes.id].notas}</div>
                   )}
+                  <ContactoBtns
+                    tel={selectedRes.nationalPhoneNumber}
+                    lat={selectedRes.location?.latitude} lng={selectedRes.location?.longitude}
+                    addr={selectedRes.formattedAddress} small />
                   <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                     <button style={{ background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                       onClick={() => { agregarARuta(selectedRes); setSelectedRes(null) }}>➕ Ruta</button>
@@ -797,6 +835,10 @@ function ProspectarZona({ clientes }) {
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Visitado: {prospecto.fecha}</div>
                   )}
                   <div style={{ marginTop: 4 }}><TierBadge tier={r.tier} /></div>
+                  <ContactoBtns
+                    tel={r.nationalPhoneNumber}
+                    lat={r.location?.latitude} lng={r.location?.longitude}
+                    addr={r.formattedAddress} small />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <button className={`btn btn-sm ${enRuta ? 'btn-ghost' : 'btn-primary'}`}

@@ -1044,7 +1044,10 @@ function GuardarClienteModal({ negocio, onClose }) {
 
 function VincularClienteModal({ negocio, clientes, onClose }) {
   const [clienteSelec, setClienteSelec] = useState('')
+  const [actualizarNombre, setActualizarNombre] = useState(true)
   const [loading, setLoading] = useState(false)
+
+  const nombreGoogle = negocio.displayName?.text || ''
 
   const lista = Object.entries(clientes)
     .map(([id, c]) => ({ id, ...c }))
@@ -1056,8 +1059,9 @@ function VincularClienteModal({ negocio, clientes, onClose }) {
     setLoading(true)
     try {
       const datos = {}
-      if (negocio.formattedAddress)   datos.direccion = negocio.formattedAddress
-      if (negocio.nationalPhoneNumber) datos.telefono  = negocio.nationalPhoneNumber
+      if (actualizarNombre && nombreGoogle) datos.razonSocial = nombreGoogle
+      if (negocio.formattedAddress)         datos.direccion   = negocio.formattedAddress
+      if (negocio.nationalPhoneNumber)      datos.telefono    = negocio.nationalPhoneNumber
       if (negocio.location) {
         datos.lat = negocio.location.latitude
         datos.lng = negocio.location.longitude
@@ -1072,7 +1076,7 @@ function VincularClienteModal({ negocio, clientes, onClose }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-title">🔗 Vincular con cliente existente</div>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-          Se van a completar los datos de dirección, teléfono y ubicación GPS del cliente seleccionado con la info de <strong>{negocio.displayName?.text}</strong>.
+          Actualizá los datos del cliente con la info de <strong>{nombreGoogle}</strong>.
         </p>
         <form onSubmit={vincular}>
           <div className="form-group">
@@ -1085,8 +1089,16 @@ function VincularClienteModal({ negocio, clientes, onClose }) {
               ))}
             </select>
           </div>
-          <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--muted)' }}>
-            <div><strong>Se actualizará:</strong></div>
+          <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--muted)', lineHeight: 1.8 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Se actualizará:</div>
+            {nombreGoogle && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={actualizarNombre}
+                  onChange={e => setActualizarNombre(e.target.checked)}
+                  style={{ accentColor: 'var(--blue)', width: 15, height: 15 }} />
+                <span>✏️ Nombre: <strong>{nombreGoogle}</strong></span>
+              </label>
+            )}
             {negocio.formattedAddress    && <div>📍 Dirección: {negocio.formattedAddress}</div>}
             {negocio.nationalPhoneNumber && <div>📞 Teléfono: {negocio.nationalPhoneNumber}</div>}
             {negocio.location            && <div>🗺 Coordenadas GPS: sí</div>}

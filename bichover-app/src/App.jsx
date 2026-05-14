@@ -11,18 +11,23 @@ import Stock from './components/Stock.jsx'
 import Estadisticas from './components/Estadisticas.jsx'
 import Mapa from './components/Mapa.jsx'
 import Exportar from './components/Exportar.jsx'
+import Pedidos from './components/Pedidos.jsx'
 
 const NAV_ITEMS = [
   { key: 'dashboard',    label: 'Dashboard',     icon: '📊' },
   { key: 'ventas',       label: 'Ventas',        icon: '🛒' },
-  { key: 'gastos',       label: 'Gastos',        icon: '💸' },
+  { key: 'pedidos',      label: 'Pedidos',       icon: '📋' },
   { key: 'clientes',     label: 'Clientes',      icon: '👥' },
+  { key: 'mapa',         label: 'Mapa',          icon: '🗺️' },
+  { key: 'gastos',       label: 'Gastos',        icon: '💸' },
   { key: 'reparto',      label: 'Reparto',       icon: '🤝' },
   { key: 'stock',        label: 'Stock',         icon: '📦' },
   { key: 'estadisticas', label: 'Estadísticas',  icon: '📈' },
-  { key: 'mapa',         label: 'Mapa',          icon: '🗺️' },
-  { key: 'exportar',    label: 'Exportar',      icon: '📤' },
+  { key: 'exportar',     label: 'Exportar',      icon: '📤' },
 ]
+
+// Items shown in mobile bottom bar (most used)
+const BOTTOM_NAV = ['dashboard', 'ventas', 'pedidos', 'clientes', 'mapa']
 
 function BusquedaGlobal({ clientes, ventas, gastos, onNavTo, onClose }) {
   const [query, setQuery] = useState('')
@@ -221,6 +226,7 @@ export default function App() {
   const [clientes, setClientes] = useState({})
   const [ventas, setVentas] = useState({})
   const [gastos, setGastos] = useState({})
+  const [pedidosPendientes, setPedidosPendientes] = useState(0)
 
   useEffect(() => {
     const u = sessionStorage.getItem('bichover_usuario')
@@ -232,7 +238,12 @@ export default function App() {
     const unC = onValue(ref(db, 'clientes'), s => setClientes(s.exists() ? s.val() : {}))
     const unV = onValue(ref(db, 'ventas'),   s => setVentas(s.exists()   ? s.val() : {}))
     const unG = onValue(ref(db, 'gastos'),   s => setGastos(s.exists()   ? s.val() : {}))
-    return () => { unC(); unV(); unG() }
+    const unP = onValue(ref(db, 'pedidos'),  s => {
+      if (!s.exists()) { setPedidosPendientes(0); return }
+      const count = Object.values(s.val()).filter(p => p.estado === 'pendiente').length
+      setPedidosPendientes(count)
+    })
+    return () => { unC(); unV(); unG(); unP() }
   }, [usuario])
 
   useEffect(() => {
@@ -264,6 +275,9 @@ export default function App() {
 
   if (!usuario) return <Login onLogin={handleLogin} />
 
+  const bottomItems = NAV_ITEMS.filter(i => BOTTOM_NAV.includes(i.key))
+  const moreItems   = NAV_ITEMS.filter(i => !BOTTOM_NAV.includes(i.key))
+
   return (
     <div className="app-layout">
       <nav className="navbar">
@@ -282,6 +296,11 @@ export default function App() {
               >
                 <span className="nav-icon">{item.icon}</span>
                 <span className="nav-label">{item.label}</span>
+                {item.key === 'pedidos' && pedidosPendientes > 0 && (
+                  <span style={{ background: 'var(--amber)', color: '#fff', borderRadius: 99, fontSize: 10, fontWeight: 900, padding: '1px 6px', marginLeft: 2 }}>
+                    {pedidosPendientes}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -311,7 +330,7 @@ export default function App() {
       </nav>
 
       <main className="main-content">
-        {seccion === 'dashboard'    && <Dashboard usuario={usuario} />}
+        {seccion === 'dashboard'    && <Dashboard usuario={usuario} onNavTo={navTo} />}
         {seccion === 'ventas'       && <Ventas usuario={usuario} />}
         {seccion === 'gastos'       && <Gastos usuario={usuario} />}
         {seccion === 'clientes'     && <Clientes usuario={usuario} />}
@@ -320,7 +339,33 @@ export default function App() {
         {seccion === 'estadisticas' && <Estadisticas usuario={usuario} />}
         {seccion === 'mapa'         && <Mapa usuario={usuario} />}
         {seccion === 'exportar'     && <Exportar />}
+        {seccion === 'pedidos'      && <Pedidos usuario={usuario} />}
       </main>
+
+      {/* Mobile bottom navigation */}
+      <nav className="bottom-nav">
+        {bottomItems.map(item => (
+          <button
+            key={item.key}
+            className={`bottom-nav-item ${seccion === item.key ? 'active' : ''}`}
+            onClick={() => navTo(item.key)}
+          >
+            <span className="bottom-nav-icon">{item.icon}</span>
+            <span className="bottom-nav-label">{item.label}</span>
+            {item.key === 'pedidos' && pedidosPendientes > 0 && (
+              <span className="bottom-nav-badge">{pedidosPendientes}</span>
+            )}
+          </button>
+        ))}
+        {/* "Más" button opens top hamburger menu */}
+        <button
+          className={`bottom-nav-item ${moreItems.some(i => i.key === seccion) ? 'active' : ''}`}
+          onClick={() => setMenuOpen(o => !o)}
+        >
+          <span className="bottom-nav-icon">☰</span>
+          <span className="bottom-nav-label">Más</span>
+        </button>
+      </nav>
 
       {showBusqueda && (
         <BusquedaGlobal

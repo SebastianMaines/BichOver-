@@ -3,6 +3,12 @@ import { ref, onValue, push, update, set } from 'firebase/database'
 import { db } from '../firebase.js'
 import ClienteSelector from './ClienteSelector.jsx'
 
+function diasDesdeStr(fechaStr) {
+  if (!fechaStr) return null
+  const [d, m, y] = fechaStr.split('/')
+  return Math.floor((Date.now() - new Date(+y, +m - 1, +d).getTime()) / 86400000)
+}
+
 const TIPOS = ['Frascos', 'Producto', 'Etiquetas', 'Cajas', 'Nafta', 'Peaje', 'Transferencia', 'Otro']
 
 function hoy() {
@@ -176,7 +182,7 @@ function startOfPeriod(key) {
   return new Date(0)
 }
 
-export default function Dashboard({ usuario }) {
+export default function Dashboard({ usuario, onNavTo }) {
   const [period, setPeriod]   = useState('1m')
   const [ventas, setVentas]   = useState([])
   const [gastos, setGastos]   = useState([])
@@ -185,6 +191,7 @@ export default function Dashboard({ usuario }) {
   const [componentes, setComponentes] = useState({})
   const [stockMinimos, setStockMinimos] = useState({})
   const [objetivoMensual, setObjetivoMensual] = useState(null)
+  const [pedidos, setPedidos] = useState({})
   const [showSale, setShowSale]   = useState(false)
   const [showExpense, setShowExpense] = useState(false)
   const [alertasDismissed, setAlertasDismissed] = useState(false)
@@ -200,7 +207,8 @@ export default function Dashboard({ usuario }) {
     const unComp = onValue(ref(db, 'componentes'), s => setComponentes(s.exists() ? s.val() : {}))
     const unMin = onValue(ref(db, 'configuracion/stockMinimos'), s => setStockMinimos(s.exists() ? s.val() : {}))
     const unObj = onValue(ref(db, 'configuracion/objetivoMensual'), s => setObjetivoMensual(s.exists() ? s.val() : null))
-    return () => { unV(); unG(); unU(); unC(); unComp(); unMin(); unObj() }
+    const unPed = onValue(ref(db, 'pedidos'), s => setPedidos(s.exists() ? s.val() : {}))
+    return () => { unV(); unG(); unU(); unC(); unComp(); unMin(); unObj(); unPed() }
   }, [])
 
   const desde = startOfPeriod(period)
@@ -235,6 +243,11 @@ export default function Dashboard({ usuario }) {
   })
   const facturacionMes = ventasMesActual.reduce((a, v) => a + v.cantidadFrascos * v.precioVenta, 0)
   const porcentajeObjetivo = objetivoMensual ? Math.min(100, (facturacionMes / objetivoMensual) * 100) : 0
+
+  const pedidosPendientes = Object.entries(pedidos)
+    .filter(([, p]) => p.estado === 'pendiente')
+    .map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => a.timestamp - b.timestamp)
 
   async function guardarObjetivo() {
     const num = parseFloat(nuevoObjetivo)
@@ -341,6 +354,49 @@ export default function Dashboard({ usuario }) {
           </div>
         )}
       </div>
+
+      {/* Pedidos pendientes widget */}
+      {pedidosPendientes.length > 0 && (
+        <div className="card mt-20" style={{ borderLeft: '4px solid var(--amber)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span className="fw-800" style={{ fontSize: 16 }}>
+              📋 Pedidos a entregar
+              <span style={{ marginLeft: 8, background: 'var(--amber)', color: '#fff', borderRadius: 20, fontSize: 12, padding: '2px 8px', fontWeight: 900 }}>
+                {pedidosPendientes.length}
+              </span>
+            </span>
+            {onNavTo && (
+              <button className="btn btn-ghost btn-sm" onClick={() => onNavTo('pedidos')}>Ver todos →</button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pedidosPendientes.slice(0, 4).map(p => {
+              const dias = diasDesdeStr(p.fechaPedido)
+              return (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 10, flexWrap: 'wrap', gap: 6 }}>
+                  <div>
+                    <span className="fw-700" style={{ fontSize: 14 }}>{p.cliente}</span>
+                    {p.notas && <span className="text-muted" style={{ fontSize: 12, marginLeft: 6 }}>· {p.notas}</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="fw-800 text-amber" style={{ fontSize: 14 }}>{p.cantidadFrascos} frascos</span>
+                    {dias != null && dias >= 2 && (
+                      <span style={{ fontSize: 12, color: dias >= 4 ? 'var(--red)' : 'var(--muted)', fontWeight: 700 }}>
+                        {dias}d
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+            {pedidosPendientes.length > 4 && (
+              <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--muted)', paddingTop: 4 }}>
+                + {pedidosPendientes.length - 4} más
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card mt-20">
         <div style={{ marginBottom: 16 }}>

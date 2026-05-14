@@ -320,14 +320,14 @@ function ProspectarZona({ clientes }) {
       const lat = data.location?.latitude
       const lng = data.location?.longitude
       if (lat && lng) {
-        setLugarSelec({ nombre, lat, lng, radio: esBarrio ? 2500 : 15000 })
+        setLugarSelec({ nombre, lat, lng, radio: esBarrio ? 5000 : 25000 })
       } else {
         // fallback: geocode the name
         const geoRes  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(nombre + ', Argentina')}&key=${MAPS_KEY}`)
         const geoData = await geoRes.json()
         if (geoData.results?.length > 0) {
           const loc = geoData.results[0].geometry.location
-          setLugarSelec({ nombre, lat: loc.lat, lng: loc.lng, radio: 5000 })
+          setLugarSelec({ nombre, lat: loc.lat, lng: loc.lng, radio: 8000 })
         }
       }
     } catch { /* ignore */ }
@@ -345,7 +345,7 @@ function ProspectarZona({ clientes }) {
     setResultados([])
     setError('')
 
-    const locationRestriction = {
+    const locationBias = {
       circle: { center: { latitude: lugarSelec.lat, longitude: lugarSelec.lng }, radius: lugarSelec.radio },
     }
 
@@ -364,7 +364,7 @@ function ProspectarZona({ clientes }) {
               'X-Goog-Api-Key': MAPS_KEY,
               'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.nationalPhoneNumber,places.businessStatus',
             },
-            body: JSON.stringify({ textQuery: query, locationRestriction }),
+            body: JSON.stringify({ textQuery: query, locationBias }),
           })
           const data = await res.json()
           const places = data.places || []

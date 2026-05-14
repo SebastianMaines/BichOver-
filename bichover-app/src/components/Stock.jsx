@@ -62,8 +62,9 @@ export default function Stock({ usuario }) {
   const stockSeba  = usuarios.Seba?.stock ?? 0
   const stockJuan  = usuarios.Juan?.stock ?? 0
   const stockTotal = stockSeba + stockJuan
-  const stockDR    = componentes.DR ?? 0
-  const stockAC    = componentes.AC ?? 0
+  const stockDR         = componentes.DR          ?? 0
+  const stockAC         = componentes.AC          ?? 0
+  const frascosVacios   = componentes.vacios      ?? 0
 
   return (
     <div>
@@ -115,6 +116,28 @@ export default function Stock({ usuario }) {
         )}
       </div>
 
+      {/* Frascos vacíos */}
+      <div className="fw-700 mb-8" style={{ fontSize: 14, color: 'var(--muted)' }}>Frascos vacíos</div>
+      <div style={{ background: '#fdf4ff', border: '2px solid #a855f7', borderRadius: 14, padding: '20px', textAlign: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#6b21a8' }}>🫙 Vacíos</div>
+        <div style={{ fontSize: 44, fontWeight: 900, color: '#a855f7' }}>{frascosVacios}</div>
+        <div style={{ fontSize: 12, color: '#9333ea' }}>unidades</div>
+      </div>
+      <div className="card mb-20">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => setExpandido(expandido === 'vacios' ? null : 'vacios')}>
+          <span className="fw-800" style={{ fontSize: 15 }}>Ajustar frascos vacíos</span>
+          <span style={{ fontSize: 18 }}>{expandido === 'vacios' ? '▲' : '▼'}</span>
+        </div>
+        {expandido === 'vacios' && (
+          <AjusteForm
+            label="vacíos"
+            valorActual={frascosVacios}
+            onGuardar={v => update(ref(db, 'componentes'), { vacios: v })}
+          />
+        )}
+      </div>
+
       {/* Componentes: DR y AC */}
       <div className="fw-700 mb-8" style={{ fontSize: 14, color: 'var(--muted)' }}>Componentes</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
@@ -137,11 +160,8 @@ export default function Stock({ usuario }) {
           <span style={{ fontSize: 18 }}>{expandido === 'DR' ? '▲' : '▼'}</span>
         </div>
         {expandido === 'DR' && (
-          <AjusteForm
-            label="DR"
-            valorActual={stockDR}
-            onGuardar={v => update(ref(db, 'componentes'), { DR: v })}
-          />
+          <AjusteForm label="DR" valorActual={stockDR}
+            onGuardar={v => update(ref(db, 'componentes'), { DR: v })} />
         )}
       </div>
 
@@ -152,11 +172,8 @@ export default function Stock({ usuario }) {
           <span style={{ fontSize: 18 }}>{expandido === 'AC' ? '▲' : '▼'}</span>
         </div>
         {expandido === 'AC' && (
-          <AjusteForm
-            label="AC"
-            valorActual={stockAC}
-            onGuardar={v => update(ref(db, 'componentes'), { AC: v })}
-          />
+          <AjusteForm label="AC" valorActual={stockAC}
+            onGuardar={v => update(ref(db, 'componentes'), { AC: v })} />
         )}
       </div>
     </div>

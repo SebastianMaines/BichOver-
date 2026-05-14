@@ -37,6 +37,13 @@ export default function Reparto({ usuario }) {
   const [guardando, setGuardando]     = useState(false)
   const [confirm, setConfirm]         = useState(null)
 
+  // Herramienta de reversión
+  const [showRevert, setShowRevert]     = useState(false)
+  const [revertDesde, setRevertDesde]   = useState('')
+  const [revertHasta, setRevertHasta]   = useState('')
+  const [revertiendo, setRevertiendo]   = useState(false)
+  const [revertMsg, setRevertMsg]       = useState('')
+
   useEffect(() => {
     const unV = onValue(ref(db, 'ventas'),   s => setVentas(s.exists()   ? s.val() : {}))
     const unG = onValue(ref(db, 'gastos'),   s => setGastos(s.exists()   ? s.val() : {}))
@@ -244,6 +251,62 @@ export default function Reparto({ usuario }) {
           </div>
         </div>
       )}
+
+      {/* Herramienta: revertir período */}
+      <div className="card mb-16" style={{ border: '1.5px solid var(--amber)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => { setShowRevert(v => !v); setRevertMsg('') }}>
+          <div>
+            <div className="fw-800" style={{ fontSize: 15 }}>🔄 Revertir período a no-repartido</div>
+            <div className="text-muted" style={{ fontSize: 12 }}>Usá esto si borraste un reparto y las ventas/gastos quedaron marcadas</div>
+          </div>
+          <span style={{ fontSize: 18 }}>{showRevert ? '▲' : '▼'}</span>
+        </div>
+
+        {showRevert && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Fecha inicio</label>
+                <input className="form-input" type="date" value={revertDesde} onChange={e => setRevertDesde(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Fecha fin</label>
+                <input className="form-input" type="date" value={revertHasta} onChange={e => setRevertHasta(e.target.value)} />
+              </div>
+            </div>
+            <button className="btn btn-amber" disabled={!revertDesde || !revertHasta || revertiendo}
+              onClick={async () => {
+                setRevertiendo(true)
+                setRevertMsg('')
+                const desde = new Date(revertDesde).getTime()
+                const hasta  = new Date(revertHasta + 'T23:59:59').getTime()
+                const updates = {}
+                let count = 0
+                Object.entries(ventas).forEach(([id, v]) => {
+                  if (v.repartido && v.timestamp >= desde && v.timestamp <= hasta) {
+                    updates[`ventas/${id}/repartido`] = false; count++
+                  }
+                })
+                Object.entries(gastos).forEach(([id, g]) => {
+                  if (g.repartido && g.monto > 0 && g.timestamp >= desde && g.timestamp <= hasta) {
+                    updates[`gastos/${id}/repartido`] = false; count++
+                  }
+                })
+                if (count > 0) await update(ref(db), updates)
+                setRevertMsg(`✅ ${count} ítems revertidos a no-repartido`)
+                setRevertiendo(false)
+              }}>
+              {revertiendo ? 'Revirtiendo...' : '🔄 Revertir ítems del período'}
+            </button>
+            {revertMsg && (
+              <div style={{ marginTop: 10, background: '#ecfdf5', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>
+                {revertMsg}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Historial */}
       {historial.length > 0 && (

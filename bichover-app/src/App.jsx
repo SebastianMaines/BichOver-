@@ -8,6 +8,7 @@ import Reparto from './components/Reparto.jsx'
 import Stock from './components/Stock.jsx'
 import Estadisticas from './components/Estadisticas.jsx'
 import Mapa from './components/Mapa.jsx'
+import Exportar from './components/Exportar.jsx'
 
 const NAV_ITEMS = [
   { key: 'dashboard',    label: 'Dashboard',     icon: '📊' },
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { key: 'stock',        label: 'Stock',         icon: '📦' },
   { key: 'estadisticas', label: 'Estadísticas',  icon: '📈' },
   { key: 'mapa',         label: 'Mapa',          icon: '🗺️' },
+  { key: 'exportar',    label: 'Exportar',      icon: '📤' },
 ]
 
 export default function App() {
@@ -95,6 +97,7 @@ export default function App() {
         {seccion === 'stock'        && <Stock usuario={usuario} />}
         {seccion === 'estadisticas' && <Estadisticas usuario={usuario} />}
         {seccion === 'mapa'         && <Mapa usuario={usuario} />}
+        {seccion === 'exportar'     && <Exportar />}
       </main>
     </div>
   )

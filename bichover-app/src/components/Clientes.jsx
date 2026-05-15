@@ -83,11 +83,13 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
   const [buscando, setBuscando] = useState(false)
   const [error, setError]       = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [placeInfo, setPlaceInfo] = useState(null)
 
   async function buscar() {
     if (!busqueda.trim()) return
     setBuscando(true)
     setError('')
+    setPlaceInfo(null)
     try {
       // Google Places API v1 (soporta CORS desde browser)
       if (MAPS_KEY) {
@@ -102,9 +104,12 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
         })
         const data = await res.json()
         if (data.places?.length > 0) {
-          const loc = data.places[0].location
+          const place = data.places[0]
+          const loc = place.location
           const found = { lat: loc.latitude, lng: loc.longitude }
-          setPin(found); setPanTarget(found); return
+          setPin(found); setPanTarget(found)
+          setPlaceInfo({ nombre: place.displayName?.text, direccion: place.formattedAddress })
+          return
         }
       }
       // Fallback gratuito para direcciones/ciudades
@@ -112,6 +117,7 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
       if (nom.length > 0) {
         const found = { lat: parseFloat(nom[0].lat), lng: parseFloat(nom[0].lon) }
         setPin(found); setPanTarget(found)
+        setPlaceInfo({ nombre: nom[0].display_name?.split(',').slice(0,2).join(','), direccion: nom[0].display_name })
       } else {
         setError('No se encontró. Probá con la dirección exacta o hacé click en el mapa.')
       }
@@ -155,8 +161,17 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
 
         {error && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 8, fontWeight: 600 }}>{error}</div>}
 
+        {placeInfo && (
+          <div style={{ background: '#ecfdf5', border: '1px solid #10b981', borderRadius: 10, padding: '10px 14px', marginBottom: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#065f46' }}>📍 {placeInfo.nombre}</div>
+            {placeInfo.direccion && (
+              <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>{placeInfo.direccion}</div>
+            )}
+          </div>
+        )}
+
         <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-          {pin ? '✅ Pin colocado — podés hacer click en el mapa para moverlo.' : 'Buscá o hacé click en el mapa para colocar el pin.'}
+          {pin ? 'Pin colocado — podés hacer click en el mapa para moverlo si no es exacto.' : 'Buscá o hacé click en el mapa para colocar el pin.'}
         </div>
 
         {MAPS_KEY ? (

@@ -86,7 +86,9 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
     setBuscando(true)
     setError('')
     try {
-      const res  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(busqueda + ', Argentina')}&key=${MAPS_KEY}`)
+      // Try Places Text Search first (finds businesses by name + address)
+      const q = encodeURIComponent(busqueda.trim() + ', Argentina')
+      const res  = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${q}&key=${MAPS_KEY}`)
       const data = await res.json()
       if (data.results?.length > 0) {
         const { lat, lng } = data.results[0].geometry.location
@@ -94,7 +96,17 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
         setPin(found)
         setPanTarget(found)
       } else {
-        setError('No se encontró. Probá con más detalle o hacé click en el mapa.')
+        // Fallback to geocoding (pure address search)
+        const res2  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${MAPS_KEY}`)
+        const data2 = await res2.json()
+        if (data2.results?.length > 0) {
+          const { lat, lng } = data2.results[0].geometry.location
+          const found = { lat, lng }
+          setPin(found)
+          setPanTarget(found)
+        } else {
+          setError('No se encontró. Probá con la dirección completa o hacé click en el mapa.')
+        }
       }
     } catch { setError('Error al buscar.') }
     finally { setBuscando(false) }

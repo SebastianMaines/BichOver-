@@ -146,6 +146,12 @@ export default function Pedidos({ usuario }) {
         usuario,
         estado:          'pendiente',
       })
+      const otroSocio = usuario === 'Seba' ? 'Juan' : 'Seba'
+      await push(ref(db, `notificaciones/${otroSocio}`), {
+        tipo: 'pedido', de: usuario,
+        mensaje: `Nuevo pedido: ${clientes[clienteKey].razonSocial} — ${cantidad} frascos 📋`,
+        timestamp: Date.now(), leida: false,
+      })
       setClienteKey(''); setCantidad(''); setPrecio(''); setNotas('')
     } finally { setLoading(false) }
   }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ref, onValue } from 'firebase/database'
+import { ref, onValue, push, update } from 'firebase/database'
 import { db } from './firebase.js'
 import Login from './components/Login.jsx'
 import Dashboard from './components/Dashboard.jsx'
@@ -220,6 +220,28 @@ function BusquedaGlobal({ clientes, ventas, gastos, onNavTo, onClose }) {
   )
 }
 
+function Toast({ notif, onDismiss }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 5000)
+    return () => clearTimeout(t)
+  }, [])
+  return (
+    <div style={{
+      position: 'fixed', bottom: 90, right: 16, zIndex: 99999,
+      background: 'var(--navy)', color: '#fff',
+      borderRadius: 14, padding: '12px 16px',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
+      maxWidth: 300, fontSize: 14, fontWeight: 600,
+      display: 'flex', alignItems: 'center', gap: 10,
+      animation: 'slideInRight 0.3s ease',
+    }}>
+      <span style={{ fontSize: 20 }}>🔔</span>
+      <span style={{ flex: 1 }}>{notif.mensaje}</span>
+      <button onClick={onDismiss} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.6)', cursor: 'pointer', fontSize: 16, padding: '0 2px' }}>✕</button>
+    </div>
+  )
+}
+
 export default function App() {
   const [usuario, setUsuario] = useState(null)
   const [seccion, setSeccion] = useState('dashboard')
@@ -229,11 +251,51 @@ export default function App() {
   const [ventas, setVentas] = useState({})
   const [gastos, setGastos] = useState({})
   const [pedidosPendientes, setPedidosPendientes] = useState(0)
+  const [notifs, setNotifs] = useState([])
+  const [toasts, setToasts] = useState([])
+  const [showNotifs, setShowNotifs] = useState(false)
+  const notifsSeenRef = useRef(new Set())
 
   useEffect(() => {
     const u = sessionStorage.getItem('bichover_usuario')
     if (u) setUsuario(u)
   }, [])
+
+  useEffect(() => {
+    if (!usuario) return
+    const unN = onValue(ref(db, `notificaciones/${usuario}`), s => {
+      if (!s.exists()) { setNotifs([]); return }
+      const todas = Object.entries(s.val())
+        .map(([id, n]) => ({ id, ...n }))
+        .filter(n => !n.leida)
+        .sort((a, b) => b.timestamp - a.timestamp)
+      setNotifs(todas)
+      // Show toast for new ones
+      todas.forEach(n => {
+        if (!notifsSeenRef.current.has(n.id)) {
+          notifsSeenRef.current.add(n.id)
+          setToasts(prev => [...prev, n])
+        }
+      })
+    })
+    return () => unN()
+  }, [usuario])
+
+  async function marcarLeida(id) {
+    await update(ref(db, `notificaciones/${usuario}/${id}`), { leida: true })
+  }
+
+  async function marcarTodasLeidas() {
+    const updates = {}
+    notifs.forEach(n => { updates[`notificaciones/${usuario}/${n.id}/leida`] = true })
+    if (Object.keys(updates).length) await update(ref(db), updates)
+    setShowNotifs(false)
+  }
+
+  function dismissToast(id) {
+    marcarLeida(id)
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }
 
   useEffect(() => {
     if (!usuario) return
@@ -316,6 +378,24 @@ export default function App() {
             >
               🔍
             </button>
+            <button
+              className="btn-salir"
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', marginRight: 4, position: 'relative' }}
+              onClick={() => setShowNotifs(v => !v)}
+              title="Notificaciones"
+            >
+              🔔
+              {notifs.length > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  background: 'var(--red)', color: '#fff',
+                  borderRadius: 99, fontSize: 10, fontWeight: 900,
+                  padding: '1px 5px', minWidth: 16, textAlign: 'center',
+                }}>
+                  {notifs.length}
+                </span>
+              )}
+            </button>
             <span className="navbar-user">
               {usuario === 'Seba' ? '🔵' : '🟣'} {usuario}
             </span>
@@ -379,6 +459,55 @@ export default function App() {
           onClose={() => setShowBusqueda(false)}
         />
       )}
+
+      {/* Notifications panel */}
+      {showNotifs && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setShowNotifs(false)}>
+          <div
+            style={{
+              position: 'absolute', top: 60, right: 16,
+              background: '#fff', borderRadius: 14,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+              width: 300, maxHeight: 400, overflow: 'auto',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 800, fontSize: 15 }}>🔔 Notificaciones</span>
+              {notifs.length > 0 && (
+                <button onClick={marcarTodasLeidas} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--blue)', fontWeight: 700 }}>
+                  Marcar todas leídas
+                </button>
+              )}
+            </div>
+            {notifs.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
+                Sin notificaciones nuevas
+              </div>
+            ) : (
+              notifs.map(n => (
+                <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 20 }}>{n.tipo === 'transferencia' ? '🔄' : n.tipo === 'pedido' ? '📋' : '🔔'}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)' }}>{n.mensaje}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                      {new Date(n.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  <button onClick={() => marcarLeida(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✕</button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toasts */}
+      <div style={{ position: 'fixed', bottom: 90, right: 16, zIndex: 99999, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {toasts.map(t => (
+          <Toast key={t.id} notif={t} onDismiss={() => dismissToast(t.id)} />
+        ))}
+      </div>
     </div>
   )
 }

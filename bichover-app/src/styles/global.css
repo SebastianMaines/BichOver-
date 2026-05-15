@@ -701,3 +701,8 @@ input, select, textarea { font-family: inherit; }
   }
 }
 .tier-pill.active-3 { background: #fffbeb; border-color: var(--amber); color: var(--amber); }
+
+@keyframes slideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}

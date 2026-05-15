@@ -274,6 +274,18 @@ export default function Dashboard({ usuario, onNavTo }) {
     setClientes(prev => ({ ...prev })) // trigger re-render
   }
 
+  function enviarResumenWA() {
+    const partes = [
+      `📊 *Resumen del día — ${hoyStr}* (${usuario})`,
+      '',
+      frascosHoy > 0 ? `🫙 Frascos vendidos: *${frascosHoy}*` : '🫙 Sin ventas hoy',
+      plataHoy > 0   ? `💰 Cobrado: *${fmt(plataHoy)}*`       : null,
+      gastosHoy > 0  ? `💸 Gastos: *${fmt(gastosHoy)}*`       : null,
+      entregadosHoy > 0 ? `📦 Pedidos entregados: *${entregadosHoy}*` : null,
+    ].filter(Boolean).join('\n')
+    window.open(`https://wa.me/?text=${encodeURIComponent(partes)}`, '_blank')
+  }
+
   async function guardarObjetivo() {
     const num = parseFloat(nuevoObjetivo)
     if (!num || num <= 0) return
@@ -300,9 +312,10 @@ export default function Dashboard({ usuario, onNavTo }) {
 
       <div className="section-header">
         <h1 className="section-title">📊 Dashboard</h1>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-primary" onClick={() => setShowSale(true)}>⚡ Venta Rápida</button>
           <button className="btn btn-danger"  onClick={() => setShowExpense(true)}>⚡ Gasto Rápido</button>
+          <button className="btn btn-ghost"   onClick={enviarResumenWA} title="Enviar resumen del día por WhatsApp">📨 WA</button>
         </div>
       </div>
 

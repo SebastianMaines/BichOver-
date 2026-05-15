@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ref, onValue, update, push } from 'firebase/database'
+import { ref, onValue, update, push, get } from 'firebase/database'
 import { db } from '../firebase.js'
 
 function hoy() {
@@ -58,6 +58,10 @@ export default function Stock({ usuario }) {
   const [componentes, setComponentes] = useState({})
   const [expandido, setExpandido]     = useState(null)
   const [produccion, setProduccion]   = useState({})
+  const [transferencias, setTransferencias] = useState({})
+  const [tfCantidad, setTfCantidad]   = useState('')
+  const [tfLoading, setTfLoading]     = useState(false)
+  const [tfMsg, setTfMsg]             = useState('')
   const [stockMinimos, setStockMinimos] = useState({ seba: '', juan: '', DR: '', AC: '', vacios: '' })
   const [savingMinimos, setSavingMinimos] = useState(false)
   const [msgMinimos, setMsgMinimos]   = useState('')
@@ -68,9 +72,10 @@ export default function Stock({ usuario }) {
   const [msgProd, setMsgProd]     = useState('')
 
   useEffect(() => {
-    const unU = onValue(ref(db, 'usuarios'),    s => setUsuarios(s.exists()    ? s.val() : {}))
-    const unC = onValue(ref(db, 'componentes'), s => setComponentes(s.exists() ? s.val() : {}))
-    const unP = onValue(ref(db, 'produccion'),  s => setProduccion(s.exists()  ? s.val() : {}))
+    const unU = onValue(ref(db, 'usuarios'),       s => setUsuarios(s.exists()       ? s.val() : {}))
+    const unC = onValue(ref(db, 'componentes'),    s => setComponentes(s.exists()    ? s.val() : {}))
+    const unP = onValue(ref(db, 'produccion'),     s => setProduccion(s.exists()     ? s.val() : {}))
+    const unT = onValue(ref(db, 'transferencias'), s => setTransferencias(s.exists() ? s.val() : {}))
     const unM = onValue(ref(db, 'configuracion/stockMinimos'), s => {
       if (s.exists()) {
         const v = s.val()
@@ -83,8 +88,36 @@ export default function Stock({ usuario }) {
         })
       }
     })
-    return () => { unU(); unC(); unP(); unM() }
+    return () => { unU(); unC(); unP(); unT(); unM() }
   }, [])
+
+  const otroSocio = usuario === 'Seba' ? 'Juan' : 'Seba'
+
+  async function transferir(e) {
+    e.preventDefault()
+    const cant = parseInt(tfCantidad)
+    if (!cant || cant <= 0) return
+    const stockMio = usuarios[usuario]?.stock ?? 0
+    if (cant > stockMio) { setTfMsg('⚠️ No tenés suficiente stock'); return }
+    setTfLoading(true)
+    setTfMsg('')
+    try {
+      const updates = {}
+      updates[`usuarios/${usuario}/stock`]    = stockMio - cant
+      updates[`usuarios/${otroSocio}/stock`]  = (usuarios[otroSocio]?.stock ?? 0) + cant
+      await update(ref(db), updates)
+      await push(ref(db, 'transferencias'), {
+        de: usuario, para: otroSocio, cantidad: cant, fecha: hoy(), timestamp: Date.now(),
+      })
+      await push(ref(db, `notificaciones/${otroSocio}`), {
+        tipo: 'transferencia', de: usuario,
+        mensaje: `${usuario} te transfirió ${cant} frasco${cant !== 1 ? 's' : ''} 🔄`,
+        timestamp: Date.now(), leida: false,
+      })
+      setTfCantidad('')
+      setTfMsg(`✅ ${cant} frascos transferidos a ${otroSocio}`)
+    } finally { setTfLoading(false) }
+  }
 
   const stockSeba       = usuarios.Seba?.stock ?? 0
   const stockJuan       = usuarios.Juan?.stock ?? 0
@@ -318,6 +351,55 @@ export default function Stock({ usuario }) {
             valorActual={usuarios[usuario]?.stock ?? 0}
             onGuardar={v => update(ref(db, `usuarios/${usuario}`), { stock: v })}
           />
+        )}
+      </div>
+
+      {/* Transferir frascos al otro socio */}
+      <div className="card mb-20">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => setExpandido(expandido === 'transfer' ? null : 'transfer')}>
+          <span className="fw-800" style={{ fontSize: 15 }}>🔄 Transferir frascos a {otroSocio}</span>
+          <span style={{ fontSize: 18 }}>{expandido === 'transfer' ? '▲' : '▼'}</span>
+        </div>
+        {expandido === 'transfer' && (
+          <div style={{ marginTop: 14 }}>
+            <form onSubmit={transferir} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ flex: 1, minWidth: 120, marginBottom: 0 }}>
+                <label className="form-label">Frascos a transferir</label>
+                <input className="form-input" type="number" min="1" max={usuarios[usuario]?.stock ?? 0} step="1" placeholder="0"
+                  value={tfCantidad} onChange={e => setTfCantidad(e.target.value)} required />
+              </div>
+              <button className="btn btn-primary btn-sm" type="submit" disabled={tfLoading} style={{ marginBottom: 2 }}>
+                {tfLoading ? 'Transfiriendo...' : `🔄 Enviar a ${otroSocio}`}
+              </button>
+            </form>
+            {tfCantidad && parseInt(tfCantidad) > 0 && (
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 13 }}>
+                <span className="text-muted">Stock {usuario} post-transferencia: </span>
+                <span className="fw-800 text-blue">{(usuarios[usuario]?.stock ?? 0) - (parseInt(tfCantidad) || 0)}</span>
+                <span className="text-muted"> · {otroSocio}: </span>
+                <span className="fw-800 text-purple">{(usuarios[otroSocio]?.stock ?? 0) + (parseInt(tfCantidad) || 0)}</span>
+              </div>
+            )}
+            {tfMsg && <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: tfMsg.startsWith('✅') ? 'var(--green)' : 'var(--red)' }}>{tfMsg}</div>}
+
+            {/* Historial de transferencias */}
+            {Object.keys(transferencias).length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div className="fw-700 mb-8" style={{ fontSize: 13, color: 'var(--muted)' }}>Últimas transferencias</div>
+                {Object.entries(transferencias)
+                  .map(([id, t]) => ({ id, ...t }))
+                  .sort((a, b) => b.timestamp - a.timestamp)
+                  .slice(0, 5)
+                  .map(t => (
+                    <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid var(--border)', fontSize: 13 }}>
+                      <span className="fw-600">{t.de} → {t.para}: <strong>{t.cantidad} frascos</strong></span>
+                      <span className="text-muted">{t.fecha}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
 

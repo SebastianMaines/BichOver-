@@ -89,17 +89,25 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
     setBuscando(true)
     setError('')
     try {
-      const q = encodeURIComponent(busqueda.trim() + ', Argentina')
-      // Google Places Text Search — encuentra negocios por nombre
+      // Google Places API v1 (soporta CORS desde browser)
       if (MAPS_KEY) {
-        const res  = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${q}&key=${MAPS_KEY}`)
+        const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': MAPS_KEY,
+            'X-Goog-FieldMask': 'places.location,places.displayName,places.formattedAddress',
+          },
+          body: JSON.stringify({ textQuery: busqueda.trim() + ', Argentina' }),
+        })
         const data = await res.json()
-        if (data.results?.length > 0) {
-          const { lat, lng } = data.results[0].geometry.location
-          setPin({ lat, lng }); setPanTarget({ lat, lng }); return
+        if (data.places?.length > 0) {
+          const loc = data.places[0].location
+          const found = { lat: loc.latitude, lng: loc.longitude }
+          setPin(found); setPanTarget(found); return
         }
       }
-      // Fallback gratuito (Nominatim) para direcciones/ciudades
+      // Fallback gratuito para direcciones/ciudades
       const nom = await nominatimSearch(busqueda.trim())
       if (nom.length > 0) {
         const found = { lat: parseFloat(nom[0].lat), lng: parseFloat(nom[0].lon) }

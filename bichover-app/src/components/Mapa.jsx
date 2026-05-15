@@ -1726,6 +1726,210 @@ function RutaEntrega({ usuario }) {
   )
 }
 
+// ── Optimizador de Ruta ───────────────────────────────────────────────────────
+function haversine(a, b) {
+  const R = 6371
+  const dLat = (b.lat - a.lat) * Math.PI / 180
+  const dLng = (b.lng - a.lng) * Math.PI / 180
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+}
+
+function OptimizadorRuta({ clientes }) {
+  const [seleccionados, setSeleccionados] = useState([])
+  const [busqueda, setBusqueda]           = useState('')
+  const [rutaOptima, setRutaOptima]       = useState(null)
+  const [nombreRuta, setNombreRuta]       = useState('')
+  const [guardando, setGuardando]         = useState(false)
+  const [guardado, setGuardado]           = useState(false)
+
+  const listaConGPS = Object.entries(clientes)
+    .map(([id, c]) => ({ id, ...c }))
+    .filter(c => c.lat && c.lng)
+    .filter(c => !busqueda || c.razonSocial?.toLowerCase().includes(busqueda.toLowerCase()) || c.localidad?.toLowerCase().includes(busqueda.toLowerCase()))
+    .sort((a, b) => (a.razonSocial || '').localeCompare(b.razonSocial || ''))
+
+  const sinGPS = Object.values(clientes).filter(c => !c.lat || !c.lng).length
+
+  function toggleCliente(id) {
+    setSeleccionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setRutaOptima(null)
+    setGuardado(false)
+  }
+
+  function toggleTodos() {
+    if (seleccionados.length === listaConGPS.length && listaConGPS.length > 0) {
+      setSeleccionados([])
+    } else {
+      setSeleccionados(listaConGPS.map(c => c.id))
+    }
+    setRutaOptima(null)
+  }
+
+  function optimizar() {
+    const puntos = seleccionados
+      .map(id => ({ id, ...clientes[id] }))
+      .filter(c => c.lat && c.lng)
+    if (puntos.length < 2) return
+
+    // Start from the point closest to Rosario center
+    const inicio = puntos.reduce((best, p) =>
+      haversine(p, ROSARIO_POS) < haversine(best, ROSARIO_POS) ? p : best
+    )
+
+    // Nearest neighbor greedy TSP
+    const visitados = new Set()
+    const ruta = []
+    let actual = inicio
+    while (ruta.length < puntos.length) {
+      visitados.add(actual.id)
+      ruta.push(actual)
+      const siguientes = puntos.filter(p => !visitados.has(p.id))
+      if (!siguientes.length) break
+      actual = siguientes.reduce((best, p) => haversine(actual, p) < haversine(actual, best) ? p : best)
+    }
+
+    let totalKm = 0
+    for (let i = 0; i < ruta.length - 1; i++) totalKm += haversine(ruta[i], ruta[i + 1])
+
+    setRutaOptima({ paradas: ruta, totalKm: Math.round(totalKm * 10) / 10 })
+    setGuardado(false)
+  }
+
+  async function guardarRuta() {
+    if (!rutaOptima || !nombreRuta.trim()) return
+    setGuardando(true)
+    const paradas = rutaOptima.paradas.map(p => ({
+      displayName:         { text: p.razonSocial || '' },
+      formattedAddress:    p.direccion || '',
+      location:            { latitude: p.lat, longitude: p.lng },
+      nationalPhoneNumber: p.telefono || '',
+      tier:                p.tier || 1,
+    }))
+    await fbPush(ref(db, 'rutas'), {
+      nombre:        nombreRuta.trim(),
+      paradas,
+      fechaGuardado: hoyMapa(),
+      timestamp:     Date.now(),
+    })
+    setGuardando(false)
+    setGuardado(true)
+    setNombreRuta('')
+  }
+
+  function abrirEnMaps() {
+    if (!rutaOptima) return
+    const stops = rutaOptima.paradas.map(p => encodeURIComponent(p.direccion || `${p.lat},${p.lng}`))
+    window.open(`https://www.google.com/maps/dir/${stops.join('/')}`, '_blank')
+  }
+
+  return (
+    <div>
+      {/* Selector de clientes */}
+      <div className="card mb-16">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span className="fw-800" style={{ fontSize: 15 }}>Clientes a visitar</span>
+          <span className="text-muted" style={{ fontSize: 12 }}>{seleccionados.length} seleccionados</span>
+        </div>
+        <input className="form-input" placeholder="Buscar cliente..." value={busqueda}
+          onChange={e => setBusqueda(e.target.value)} style={{ marginBottom: 10 }} />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+          <button className="btn btn-ghost btn-sm" onClick={toggleTodos}>
+            {seleccionados.length === listaConGPS.length && listaConGPS.length > 0 ? 'Deseleccionar todos' : 'Seleccionar todos'}
+          </button>
+          {sinGPS > 0 && <span className="text-muted" style={{ fontSize: 12 }}>({sinGPS} sin GPS)</span>}
+        </div>
+        <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {listaConGPS.map(c => {
+            const sel = seleccionados.includes(c.id)
+            const cfg = TIER_CONFIG[c.tier || 1]
+            return (
+              <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: sel ? '#e8f1ff' : 'transparent', cursor: 'pointer', transition: 'background .1s' }}>
+                <input type="checkbox" checked={sel} onChange={() => toggleCliente(c.id)}
+                  style={{ accentColor: 'var(--blue)', width: 16, height: 16, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.razonSocial}</div>
+                  {c.localidad && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{c.localidad}</div>}
+                </div>
+                <span style={{ fontSize: 10, color: cfg.color, fontWeight: 700, flexShrink: 0 }}>{cfg.glyph}</span>
+              </label>
+            )
+          })}
+          {listaConGPS.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>
+              No hay clientes con GPS que coincidan
+            </div>
+          )}
+        </div>
+      </div>
+
+      <button className="btn btn-primary" style={{ width: '100%', marginBottom: 16, fontSize: 15 }}
+        disabled={seleccionados.length < 2} onClick={optimizar}>
+        ⚡ Optimizar ruta ({seleccionados.length} clientes)
+      </button>
+
+      {/* Resultado */}
+      {rutaOptima && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <div className="fw-800" style={{ fontSize: 16 }}>Orden óptimo</div>
+              <div className="text-muted" style={{ fontSize: 13 }}>
+                ~{rutaOptima.totalKm} km en total · {rutaOptima.paradas.length} paradas
+              </div>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={abrirEnMaps}>📱 Abrir en Maps</button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {rutaOptima.paradas.map((p, i) => {
+              const cfg = TIER_CONFIG[p.tier || 1]
+              const kmSig = i < rutaOptima.paradas.length - 1
+                ? Math.round(haversine(p, rutaOptima.paradas[i + 1]) * 10) / 10
+                : null
+              return (
+                <div key={p.id}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 0' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--blue)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, flexShrink: 0 }}>
+                      {i + 1}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.razonSocial}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.localidad}{p.direccion ? ` · ${p.direccion}` : ''}</div>
+                    </div>
+                    <span style={{ fontSize: 11, color: cfg.color, fontWeight: 700, flexShrink: 0 }}>{cfg.glyph}</span>
+                  </div>
+                  {kmSig != null && (
+                    <div style={{ paddingLeft: 38, fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>
+                      ↓ {kmSig} km
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 14 }}>
+            <div className="fw-700 mb-8" style={{ fontSize: 13 }}>Guardar en Rutas Guardadas</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className="form-input" placeholder="Nombre de la ruta..." value={nombreRuta}
+                onChange={e => setNombreRuta(e.target.value)} style={{ flex: 1 }} />
+              <button className="btn btn-success" disabled={!nombreRuta.trim() || guardando} onClick={guardarRuta}>
+                {guardando ? '...' : '💾'}
+              </button>
+            </div>
+            {guardado && (
+              <div style={{ color: 'var(--green)', fontSize: 13, fontWeight: 600, marginTop: 8 }}>
+                ✅ Guardada — disponible en Rutas Guardadas con Modo en Ruta
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Componente principal Mapa ─────────────────────────────────────────────────
 export default function Mapa({ usuario }) {
   const [tab, setTab]           = useState('clientes')
@@ -1750,9 +1954,13 @@ export default function Mapa({ usuario }) {
           onClick={() => setTab('entrega')}>📦 Ruta Entrega</button>
         <button className={`tab-btn ${tab === 'rutas' ? 'active' : ''}`}
           onClick={() => setTab('rutas')}>📋 Rutas Guardadas</button>
+        <button className={`tab-btn ${tab === 'optimizar' ? 'active' : ''}`}
+          onClick={() => setTab('optimizar')}>⚡ Optimizar</button>
       </div>
 
-      {tab === 'rutas' ? (
+      {tab === 'optimizar' ? (
+        <OptimizadorRuta clientes={clientes} />
+      ) : tab === 'rutas' ? (
         <RutasGuardadas />
       ) : tab === 'entrega' ? (
         MAPS_KEY ? (

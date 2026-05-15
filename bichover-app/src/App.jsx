@@ -12,6 +12,7 @@ import Estadisticas from './components/Estadisticas.jsx'
 import Mapa from './components/Mapa.jsx'
 import Exportar from './components/Exportar.jsx'
 import Pedidos from './components/Pedidos.jsx'
+import Kilometros from './components/Kilometros.jsx'
 
 const NAV_ITEMS = [
   { key: 'dashboard',    label: 'Dashboard',     icon: '📊' },
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { key: 'stock',        label: 'Stock',         icon: '📦' },
   { key: 'estadisticas', label: 'Estadísticas',  icon: '📈' },
   { key: 'exportar',     label: 'Exportar',      icon: '📤' },
+  { key: 'kilometros',   label: 'Kilómetros',    icon: '🚗' },
 ]
 
 // Items shown in mobile bottom bar (most used)
@@ -340,6 +342,7 @@ export default function App() {
         {seccion === 'mapa'         && <Mapa usuario={usuario} />}
         {seccion === 'exportar'     && <Exportar />}
         {seccion === 'pedidos'      && <Pedidos usuario={usuario} />}
+        {seccion === 'kilometros'   && <Kilometros usuario={usuario} />}
       </main>
 
       {/* Mobile bottom navigation */}

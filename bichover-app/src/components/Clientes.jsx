@@ -32,14 +32,17 @@ function TierBadge({ tier }) {
   return <span className={`tier-badge ${t.cls}`}>{t.label}</span>
 }
 
+async function nominatimSearch(q, limit = 5) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Argentina')}&format=json&limit=${limit}&countrycodes=ar&addressdetails=1`
+  const res = await fetch(url, { headers: { 'Accept-Language': 'es' } })
+  return res.json()
+}
+
 async function geocodificar(localidad) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(localidad + ', Argentina')}&key=${MAPS_KEY}`
-  const res = await fetch(url)
-  const data = await res.json()
-  if (data.results && data.results.length > 0) {
-    const loc = data.results[0].geometry.location
-    const jitter = () => Math.random() * 0.01 - 0.005
-    return { lat: loc.lat + jitter(), lng: loc.lng + jitter() }
+  const data = await nominatimSearch(localidad, 1)
+  if (data.length > 0) {
+    const j = () => Math.random() * 0.01 - 0.005
+    return { lat: parseFloat(data[0].lat) + j(), lng: parseFloat(data[0].lon) + j() }
   }
   return null
 }
@@ -86,15 +89,13 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
     setBuscando(true)
     setError('')
     try {
-      const res  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(busqueda + ', Argentina')}&key=${MAPS_KEY}`)
-      const data = await res.json()
-      if (data.results?.length > 0) {
-        const { lat, lng } = data.results[0].geometry.location
-        const found = { lat, lng }
+      const data = await nominatimSearch(busqueda.trim())
+      if (data.length > 0) {
+        const found = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
         setPin(found)
         setPanTarget(found)
       } else {
-        setError('No se encontró. Probá con más detalle o hacé click en el mapa.')
+        setError('No se encontró. Probá con la dirección completa o hacé click en el mapa.')
       }
     } catch { setError('Error al buscar.') }
     finally { setBuscando(false) }

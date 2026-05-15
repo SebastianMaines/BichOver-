@@ -73,26 +73,30 @@ function TierBadge({ tier }) {
   )
 }
 
+async function nominatimSearch(q, limit = 5) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Argentina')}&format=json&limit=${limit}&countrycodes=ar&addressdetails=1`
+  const res = await fetch(url, { headers: { 'Accept-Language': 'es' } })
+  return res.json()
+}
+
 async function geocodificar(localidad) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(localidad + ', Argentina')}&key=${MAPS_KEY}`
-  const res  = await fetch(url)
-  const data = await res.json()
-  if (data.results?.length > 0) {
-    const { lat, lng } = data.results[0].geometry.location
+  const data = await nominatimSearch(localidad, 1)
+  if (data.length > 0) {
     const j = () => Math.random() * 0.01 - 0.005
-    return { lat: lat + j(), lng: lng + j() }
+    return { lat: parseFloat(data[0].lat) + j(), lng: parseFloat(data[0].lon) + j() }
   }
   return null
 }
 
 // ── Solapa A: Mis Clientes ────────────────────────────────────────────────────
 function AgregarClienteModal({ onClose }) {
-  const [query, setQuery]       = useState('')
-  const [sugerencias, setSugs]  = useState([])
-  const [seleccionado, setSel]  = useState(null)
-  const [localidad, setLocalidad] = useState('')
-  const [tier, setTier]         = useState(1)
-  const [loading, setLoading]   = useState(false)
+  const [query, setQuery]           = useState('')
+  const [resultados, setResultados] = useState([])
+  const [seleccionado, setSel]      = useState(null)
+  const [localidad, setLocalidad]   = useState('')
+  const [tier, setTier]             = useState(1)
+  const [loading, setLoading]       = useState(false)
+  const [buscando, setBuscando]     = useState(false)
   const debRef = useRef(null)
 
   async function handleQueryChange(e) {
@@ -100,35 +104,24 @@ function AgregarClienteModal({ onClose }) {
     setQuery(val)
     setSel(null)
     if (debRef.current) clearTimeout(debRef.current)
-    if (val.length < 2) { setSugs([]); return }
+    if (val.length < 3) { setResultados([]); return }
     debRef.current = setTimeout(async () => {
-      if (!MAPS_KEY) return
+      setBuscando(true)
       try {
-        const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': MAPS_KEY },
-          body: JSON.stringify({ input: val, includedRegionCodes: ['ar'] }),
-        })
-        const data = await res.json()
-        setSugs((data.suggestions || []).map(s => s.placePrediction).filter(Boolean))
+        const data = await nominatimSearch(val)
+        setResultados(data.slice(0, 5))
       } catch { /* ignore */ }
-    }, 300)
+      finally { setBuscando(false) }
+    }, 400)
   }
 
-  async function seleccionar(pred) {
-    setSugs([])
-    const nombre = pred.structuredFormat?.mainText?.text || pred.text?.text || ''
+  function seleccionar(r) {
+    const nombre = r.name || r.display_name.split(',')[0]
+    const loc = r.address?.city || r.address?.town || r.address?.village || r.address?.suburb || ''
     setQuery(nombre)
-    try {
-      const resourceName = pred.place || `places/${pred.placeId}`
-      const res = await fetch(`https://places.googleapis.com/v1/${resourceName}`, {
-        headers: { 'X-Goog-Api-Key': MAPS_KEY, 'X-Goog-FieldMask': 'displayName,formattedAddress,location,nationalPhoneNumber,addressComponents' },
-      })
-      const data = await res.json()
-      const loc = data.addressComponents?.find(c => c.types?.includes('locality'))?.longText || ''
-      setLocalidad(loc)
-      setSel(data)
-    } catch { /* ignore */ }
+    setLocalidad(loc)
+    setSel({ nombre, localidad: loc, direccion: r.display_name, lat: parseFloat(r.lat), lng: parseFloat(r.lon) })
+    setResultados([])
   }
 
   async function guardar(e) {
@@ -136,16 +129,16 @@ function AgregarClienteModal({ onClose }) {
     if (!seleccionado) return
     setLoading(true)
     await fbPush(ref(db, 'clientes'), {
-      razonSocial: seleccionado.displayName?.text || query,
-      localidad,
-      direccion: seleccionado.formattedAddress || '',
-      telefono: seleccionado.nationalPhoneNumber || '',
+      razonSocial: seleccionado.nombre,
+      localidad: seleccionado.localidad,
+      direccion: seleccionado.direccion,
+      telefono: '',
       tier: Number(tier),
       cantidadFrascos: 0,
       fechaUltimaCompra: null,
       timestamp: Date.now(),
-      lat: seleccionado.location?.latitude ?? null,
-      lng: seleccionado.location?.longitude ?? null,
+      lat: seleccionado.lat,
+      lng: seleccionado.lng,
     })
     setLoading(false)
     onClose()
@@ -157,18 +150,19 @@ function AgregarClienteModal({ onClose }) {
         <div className="modal-title">➕ Agregar cliente</div>
         <form onSubmit={guardar}>
           <div className="form-group">
-            <label className="form-label">Buscar negocio</label>
+            <label className="form-label">Buscar negocio o dirección</label>
             <div style={{ position: 'relative' }}>
               <input className="form-input" autoComplete="off"
-                placeholder="Nombre del negocio..."
+                placeholder="Nombre del negocio o dirección..."
                 value={query} onChange={handleQueryChange} />
-              {sugerencias.length > 0 && (
+              {buscando && <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13 }}>⏳</div>}
+              {resultados.length > 0 && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.14)', marginTop: 2, maxHeight: 220, overflowY: 'auto' }}>
-                  {sugerencias.map(s => (
-                    <div key={s.placeId} onMouseDown={() => seleccionar(s)}
+                  {resultados.map((r, i) => (
+                    <div key={i} onMouseDown={() => seleccionar(r)}
                       style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{s.structuredFormat?.mainText?.text || s.text?.text}</div>
-                      {s.structuredFormat?.secondaryText?.text && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.structuredFormat.secondaryText.text}</div>}
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{r.name || r.display_name.split(',')[0]}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.display_name}</div>
                     </div>
                   ))}
                 </div>
@@ -191,9 +185,8 @@ function AgregarClienteModal({ onClose }) {
                 </select>
               </div>
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: 'var(--muted)', lineHeight: 1.8 }}>
-                {seleccionado.formattedAddress && <div>📍 {seleccionado.formattedAddress}</div>}
-                {seleccionado.nationalPhoneNumber && <div>📞 {seleccionado.nationalPhoneNumber}</div>}
-                {seleccionado.location && <div>🗺 GPS: sí</div>}
+                <div>📍 {seleccionado.direccion}</div>
+                <div>🗺 GPS: sí</div>
               </div>
             </>
           )}
@@ -451,51 +444,23 @@ function ProspectarZona({ clientes }) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (val.length < 2) { setSugerencias([]); setMostrarDrop(false); return }
     debounceRef.current = setTimeout(async () => {
-      if (!MAPS_KEY) return
       try {
-        const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': MAPS_KEY },
-          body: JSON.stringify({
-            input: val,
-            includedRegionCodes: ['ar'],
-            includedPrimaryTypes: ['locality', 'sublocality', 'neighborhood', 'administrative_area_level_2', 'administrative_area_level_3'],
-          }),
-        })
-        const data = await res.json()
-        const preds = (data.suggestions || []).map(s => s.placePrediction).filter(Boolean)
-        setSugerencias(preds)
-        setMostrarDrop(preds.length > 0)
+        const data = await nominatimSearch(val, 5)
+        const sug = data.filter(r => ['city','town','village','suburb','neighbourhood','quarter','municipality'].includes(r.type) || r.class === 'place' || r.class === 'boundary')
+        setSugerencias(sug.length > 0 ? sug : data.slice(0, 4))
+        setMostrarDrop((sug.length > 0 ? sug : data.slice(0, 4)).length > 0)
       } catch { /* ignore */ }
-    }, 300)
+    }, 350)
   }
 
-  async function seleccionarLugar(pred) {
+  async function seleccionarLugar(r) {
     setMostrarDrop(false)
-    const nombre = pred.structuredFormat?.mainText?.text || pred.text?.text || ''
+    const nombre = r.name || r.display_name.split(',')[0]
     setAcInput(nombre)
-    try {
-      const resourceName = pred.place || `places/${pred.placeId}`
-      const res = await fetch(`https://places.googleapis.com/v1/${resourceName}`, {
-        headers: { 'X-Goog-Api-Key': MAPS_KEY, 'X-Goog-FieldMask': 'location,types' },
-      })
-      const data = await res.json()
-      const tipos = data.types || []
-      const esBarrio = tipos.some(t => ['neighborhood', 'sublocality', 'sublocality_level_1', 'sublocality_level_2'].includes(t))
-      const lat = data.location?.latitude
-      const lng = data.location?.longitude
-      if (lat && lng) {
-        setLugarSelec({ nombre, lat, lng, radio: esBarrio ? 5000 : 25000 })
-      } else {
-        // fallback: geocode the name
-        const geoRes  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(nombre + ', Argentina')}&key=${MAPS_KEY}`)
-        const geoData = await geoRes.json()
-        if (geoData.results?.length > 0) {
-          const loc = geoData.results[0].geometry.location
-          setLugarSelec({ nombre, lat: loc.lat, lng: loc.lng, radio: 8000 })
-        }
-      }
-    } catch { /* ignore */ }
+    const lat = parseFloat(r.lat)
+    const lng = parseFloat(r.lon)
+    const esBarrio = ['suburb','neighbourhood','quarter'].includes(r.type)
+    setLugarSelec({ nombre, lat, lng, radio: esBarrio ? 5000 : 20000 })
   }
 
   function toggleTierAct(t) {
@@ -649,16 +614,14 @@ function ProspectarZona({ clientes }) {
                   background: '#fff', border: '1px solid var(--border)', borderRadius: 8,
                   boxShadow: '0 4px 16px rgba(0,0,0,.14)', marginTop: 2, maxHeight: 240, overflowY: 'auto',
                 }}>
-                  {sugerencias.map(s => (
-                    <div key={s.placeId}
+                  {sugerencias.map((s, i) => (
+                    <div key={i}
                       onMouseDown={() => seleccionarLugar(s)}
                       style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                        {s.structuredFormat?.mainText?.text || s.text?.text}
+                        {s.name || s.display_name.split(',')[0]}
                       </div>
-                      {s.structuredFormat?.secondaryText?.text && (
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.structuredFormat.secondaryText.text}</div>
-                      )}
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.display_name}</div>
                     </div>
                   ))}
                 </div>

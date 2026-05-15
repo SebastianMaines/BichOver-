@@ -89,13 +89,23 @@ function VincularMapaModal({ cliente, clienteId, onClose }) {
     setBuscando(true)
     setError('')
     try {
-      const data = await nominatimSearch(busqueda.trim())
-      if (data.length > 0) {
-        const found = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
-        setPin(found)
-        setPanTarget(found)
+      const q = encodeURIComponent(busqueda.trim() + ', Argentina')
+      // Google Places Text Search — encuentra negocios por nombre
+      if (MAPS_KEY) {
+        const res  = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${q}&key=${MAPS_KEY}`)
+        const data = await res.json()
+        if (data.results?.length > 0) {
+          const { lat, lng } = data.results[0].geometry.location
+          setPin({ lat, lng }); setPanTarget({ lat, lng }); return
+        }
+      }
+      // Fallback gratuito (Nominatim) para direcciones/ciudades
+      const nom = await nominatimSearch(busqueda.trim())
+      if (nom.length > 0) {
+        const found = { lat: parseFloat(nom[0].lat), lng: parseFloat(nom[0].lon) }
+        setPin(found); setPanTarget(found)
       } else {
-        setError('No se encontró. Probá con la dirección completa o hacé click en el mapa.')
+        setError('No se encontró. Probá con la dirección exacta o hacé click en el mapa.')
       }
     } catch { setError('Error al buscar.') }
     finally { setBuscando(false) }

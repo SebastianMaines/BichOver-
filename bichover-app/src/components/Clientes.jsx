@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { ref, onValue, push, update, remove, set } from 'firebase/database'
 import { db } from '../firebase.js'
+import {
+  APIProvider, Map, AdvancedMarker, useMap,
+} from '@vis.gl/react-google-maps'
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
@@ -59,6 +62,121 @@ function diasDesde(fecha) {
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
+const ROSARIO = { lat: -32.9468, lng: -60.6393 }
+
+function MapPanner({ target }) {
+  const map = useMap()
+  useEffect(() => {
+    if (map && target) { map.panTo(target); map.setZoom(17) }
+  }, [map, target])
+  return null
+}
+
+function VincularMapaModal({ cliente, clienteId, onClose }) {
+  const inicial = [cliente.razonSocial, cliente.direccion, cliente.localidad].filter(Boolean).join(', ')
+  const [busqueda, setBusqueda] = useState(inicial)
+  const [pin, setPin]           = useState(cliente.lat ? { lat: cliente.lat, lng: cliente.lng } : null)
+  const [panTarget, setPanTarget] = useState(null)
+  const [buscando, setBuscando] = useState(false)
+  const [error, setError]       = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  async function buscar() {
+    if (!busqueda.trim()) return
+    setBuscando(true)
+    setError('')
+    try {
+      const res  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(busqueda + ', Argentina')}&key=${MAPS_KEY}`)
+      const data = await res.json()
+      if (data.results?.length > 0) {
+        const { lat, lng } = data.results[0].geometry.location
+        const found = { lat, lng }
+        setPin(found)
+        setPanTarget(found)
+      } else {
+        setError('No se encontró. Probá con más detalle o hacé click en el mapa.')
+      }
+    } catch { setError('Error al buscar.') }
+    finally { setBuscando(false) }
+  }
+
+  async function confirmar() {
+    if (!pin) return
+    setGuardando(true)
+    await update(ref(db, `clientes/${clienteId}`), { lat: pin.lat, lng: pin.lng })
+    onClose()
+  }
+
+  function handleMapClick(e) {
+    const { lat, lng } = e.detail.latLng
+    setPin({ lat, lng })
+  }
+
+  const defaultCenter = cliente.lat ? { lat: cliente.lat, lng: cliente.lng } : ROSARIO
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 560, width: '95vw' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-title">📍 Vincular al mapa — {cliente.razonSocial}</div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <input
+            className="form-input"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && buscar()}
+            placeholder="Nombre, dirección, localidad..."
+            style={{ flex: 1 }}
+            autoFocus
+          />
+          <button className="btn btn-primary" onClick={buscar} disabled={buscando}>
+            {buscando ? '⏳' : '🔍'}
+          </button>
+        </div>
+
+        {error && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 8, fontWeight: 600 }}>{error}</div>}
+
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+          {pin ? '✅ Pin colocado — podés hacer click en el mapa para moverlo.' : 'Buscá o hacé click en el mapa para colocar el pin.'}
+        </div>
+
+        {MAPS_KEY ? (
+          <APIProvider apiKey={MAPS_KEY}>
+            <Map
+              style={{ width: '100%', height: 320, borderRadius: 12, marginBottom: 14 }}
+              defaultCenter={defaultCenter}
+              defaultZoom={cliente.lat ? 16 : 13}
+              mapId="vincular-map"
+              disableDefaultUI
+              zoomControl
+              onClick={handleMapClick}
+            >
+              <MapPanner target={panTarget} />
+              {pin && (
+                <AdvancedMarker position={pin}>
+                  <div style={{ fontSize: 32, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>📍</div>
+                </AdvancedMarker>
+              )}
+            </Map>
+          </APIProvider>
+        ) : (
+          <div style={{ background: 'var(--bg)', borderRadius: 12, padding: 20, textAlign: 'center', marginBottom: 14, color: 'var(--muted)', fontSize: 13 }}>
+            Sin API key de Maps — ingresá las coordenadas manualmente buscando la dirección.
+            {pin && <div style={{ marginTop: 8, fontWeight: 700, color: 'var(--green)', fontSize: 12 }}>📍 {pin.lat.toFixed(6)}, {pin.lng.toFixed(6)}</div>}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmar} disabled={!pin || guardando}>
+            {guardando ? 'Guardando...' : '✅ Confirmar ubicación'}
+          </button>
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Clientes({ usuario }) {
   const [clientes, setClientes]     = useState({})
   const [ventas, setVentas]         = useState({})
@@ -71,6 +189,7 @@ export default function Clientes({ usuario }) {
   const [geocoding, setGeocoding]   = useState(false)
   const [loading, setLoading]       = useState(false)
   const [historialAbierto, setHistorialAbierto] = useState(null)
+  const [vincularId, setVincularId] = useState(null)
 
   const [form, setForm] = useState({
     razonSocial: '', localidad: '', direccion: '', telefono: '', tier: 1, precioHabitual: ''
@@ -341,8 +460,24 @@ export default function Clientes({ usuario }) {
                     💲 Precio habitual: ${Number(c.precioHabitual).toLocaleString('es-AR')}/frasco
                   </div>
                 )}
-                <div style={{ fontSize: 12, color: c.lat ? 'var(--green)' : 'var(--light)' }}>
-                  {c.lat ? '🗺 En el mapa' : '⚪ Sin ubicación'}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 12, color: c.lat ? 'var(--green)' : 'var(--light)' }}>
+                    {c.lat ? '🗺 En el mapa' : '⚪ Sin ubicación en mapa'}
+                  </div>
+                  {!c.lat && (
+                    <button
+                      onClick={() => setVincularId(c.id)}
+                      style={{ background: 'none', border: '1px solid var(--blue)', color: 'var(--blue)', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      📍 Vincular
+                    </button>
+                  )}
+                  {c.lat && (
+                    <button
+                      onClick={() => setVincularId(c.id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 11, cursor: 'pointer', padding: '2px 4px' }}>
+                      ✏️ Mover
+                    </button>
+                  )}
                 </div>
                 {inactivo && (
                   <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: '#92400e', fontWeight: 700 }}>
@@ -389,6 +524,15 @@ export default function Clientes({ usuario }) {
             )
           })}
         </div>
+      )}
+
+      {/* Modal vincular al mapa */}
+      {vincularId && clientes[vincularId] && (
+        <VincularMapaModal
+          cliente={clientes[vincularId]}
+          clienteId={vincularId}
+          onClose={() => setVincularId(null)}
+        />
       )}
 
       {/* Modal historial */}
